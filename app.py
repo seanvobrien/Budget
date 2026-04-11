@@ -235,49 +235,62 @@ def derived_income(s):
     }
 
 def run_parser():
+    import tempfile, shutil, contextlib, importlib
     add_log("Running statement parsers...", "info")
     parse_results = []
+
+    # OneDrive / iCloud / Dropbox: copy to local temp before parsing
+    stmts_root = None
+    for name in ("statements", "Statements"):
+        p = BASE_DIR / name
+        if p.exists():
+            stmts_root = p
+            break
+    use_base = BASE_DIR
+    tmp_dir  = None
+    if stmts_root:
+        cloud_kw = ("onedrive", "icloud", "dropbox", "google drive", "box")
+        if any(kw in str(stmts_root).lower() for kw in cloud_kw):
+            add_log("Cloud folder detected - copying to temp for parsing...", "info")
+            tmp_dir   = Path(tempfile.mkdtemp(prefix="budget_parse_"))
+            tmp_stmts = tmp_dir / "statements"
+            shutil.copytree(str(stmts_root), str(tmp_stmts))
+            use_base  = tmp_dir
+            add_log(f"Temp copy ready at {tmp_dir}", "info")
+
     try:
-        if getattr(sys, 'frozen', False):
-            # Running as PyInstaller bundle — import run module directly
-            # sys.path needs BUNDLE_DIR so 'import run' and 'import src.*' resolve
-            import contextlib
+        if getattr(sys, "frozen", False):
             if str(BUNDLE_DIR) not in sys.path:
                 sys.path.insert(0, str(BUNDLE_DIR))
-            import importlib
             run_mod = importlib.import_module("run")
-            importlib.reload(run_mod)   # ensure fresh state on repeated parses
-            output_lines = []
+            importlib.reload(run_mod)
             class _Capture:
                 def write(self, s):
-                    if s.strip():
-                        output_lines.append(s.strip())
-                        add_log(s.strip(), "info")
+                    if s.strip(): add_log(s.strip(), "info")
                 def flush(self): pass
             with contextlib.redirect_stdout(_Capture()):
-                run_mod.main(BASE_DIR)
+                run_mod.main(use_base)
             add_log("Statements parsed successfully.", "success")
             return {"ok": True, "parse_results": []}
         else:
             r = subprocess.run(
-                [sys.executable, str(BUNDLE_DIR/"run.py")],
-                cwd=str(BASE_DIR), capture_output=True, text=True,
+                [sys.executable, str(BUNDLE_DIR / "run.py")],
+                cwd=str(use_base), capture_output=True, text=True,
                 timeout=180, encoding="utf-8", errors="replace"
             )
-            for l in (r.stdout or "").strip().split("\n"):
-                if not l.strip(): continue
-                add_log(l.strip(), "info")
+            for line in (r.stdout or "").strip().splitlines():
+                if not line.strip(): continue
+                add_log(line.strip(), "info")
                 m = re.match(
-                    r"\[(?:statements_parser|StatementsParser):(?P<method>[\w-]+)\]\s+(?P<file>.+?):\s+(?P<rows>\d+) rows,\s+confidence=(?P<label>\w+)\s+\((?P<pct>[\d.]+)%\)",
-                    l.strip()
+                    r"\[(?:statements_parser|StatementsParser):(?P<method>[\w-]+)\]\s+"
+                    r"(?P<file>.+?):\s+(?P<rows>\d+) rows,\s+confidence=(?P<label>\w+)"
+                    r"\s+\((?P<pct>[\d.]+)%\)", line.strip()
                 )
                 if m:
                     parse_results.append({
-                        "file":       m.group("file"),
-                        "method":     m.group("method"),
-                        "rows":       int(m.group("rows")),
-                        "confidence": float(m.group("pct")) / 100,
-                        "warnings":   [],
+                        "file": m.group("file"), "method": m.group("method"),
+                        "rows": int(m.group("rows")),
+                        "confidence": float(m.group("pct")) / 100, "warnings": [],
                     })
             if r.returncode == 0:
                 add_log("Statements parsed successfully.", "success")
@@ -291,6 +304,9 @@ def run_parser():
     except Exception as e:
         add_log(str(e), "error")
         return {"ok": False, "error": str(e), "parse_results": []}
+    finally:
+        if tmp_dir and tmp_dir.exists():
+            shutil.rmtree(str(tmp_dir), ignore_errors=True)
 
 def load_transactions():
     p = OUTPUT_DIR / "transactions.csv"
@@ -575,6 +591,29 @@ def shutdown():
         import time; time.sleep(0.3); os._exit(0)
     threading.Thread(target=_exit, daemon=True).start()
     return jsonify({"ok": True})
+
+# ── Heartbeat — frontend pings every 5s; if no ping for 15s, shut down ────────
+_last_ping = {"t": None}
+
+@app.route("/api/ping", methods=["POST"])
+def ping():
+    import time
+    _last_ping["t"] = time.time()
+    return jsonify({"ok": True})
+
+def _watchdog():
+    """Shut down if the browser tab has been closed for 15 seconds."""
+    import time
+    time.sleep(10)   # grace period on startup
+    _last_ping["t"] = time.time()
+    while True:
+        time.sleep(5)
+        if _last_ping["t"] and (time.time() - _last_ping["t"]) > 15:
+            add_log("Browser closed — shutting down.", "info")
+            time.sleep(0.5)
+            os._exit(0)
+
+threading.Thread(target=_watchdog, daemon=True).start()
 
 @app.route("/api/events")
 def events():

@@ -508,7 +508,7 @@ select:focus,input:focus{border-color:var(--acc2)}
       </div>
 
       <div class="ssub">Statement Folders</div>
-      <div style="font-size:11px;color:var(--mut);margin-bottom:10px;line-height:1.5">All folders inside <span style="font-family:var(--font-mono);background:var(--bg3);padding:1px 5px;border-radius:3px;font-size:10px">BudgetApp/statements/</span>. Parser auto-detects formats — no renaming needed.</div>
+      <div style="font-size:11px;color:var(--mut);margin-bottom:10px;line-height:1.5">All folders inside <span style="font-family:var(--font-mono);background:var(--bg3);padding:1px 5px;border-radius:3px;font-size:10px">BudgetApp/Statements/</span>. Parser auto-detects formats — no renaming needed.</div>
 
       <div class="folder-item">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
@@ -772,6 +772,9 @@ function g(id){return document.getElementById(id)}
 function toast(m,d=2500){const t=g("toast");t.textContent=m;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),d)}
 function addLog(m,lv="info"){const d=g("log-lines");const s=document.createElement("div");s.className=`log-line ${lv}`;s.textContent=`[${new Date().toLocaleTimeString()}] ${m}`;d.prepend(s);while(d.children.length>40)d.lastChild.remove()}
 
+// ── HEARTBEAT — keeps server alive; stops server when tab closes ──────────────
+setInterval(()=>{ fetch(`${API}/ping`,{method:"POST"}).catch(()=>{}); }, 5000);
+
 // ── SHUTDOWN ──
 async function stopServer(){
   if(!confirm("Stop the Budget server? This will close the app."))return;
@@ -896,7 +899,7 @@ function renderDash(){
     _emptyBanner("kpi-cards","📂",
       "No transaction data yet",
       [
-        "Drop your credit card and checking statement files into the <strong style='color:var(--txt)'>statements/credit</strong> and <strong style='color:var(--txt)'>statements/debit</strong> folders, then click <strong style='color:var(--txt)'>↻ Parse Statements</strong> in the top bar.",
+        "Drop your credit card and checking statement files into the <strong style='color:var(--txt)'>Statements/Credit</strong> and <strong style='color:var(--txt)'>Statements/Debit</strong> folders, then click <strong style='color:var(--txt)'>↻ Parse Statements</strong> in the top bar.",
         "Go to <strong style='color:var(--txt)'>Settings → Setup Guide</strong> for step-by-step export instructions for each bank."
       ]);
     g("inc-summary").innerHTML=_incomeSetupPrompt();
@@ -960,7 +963,7 @@ function renderMonthlyDetail(){
     g("m-rows").innerHTML=`<div style="padding:30px;text-align:center;color:var(--mut)">
       <div style="font-size:24px;margin-bottom:8px">📂</div>
       <div style="font-size:12px;font-weight:600;color:var(--txt);margin-bottom:6px">No transactions yet</div>
-      <div style="font-size:11px;line-height:1.5;margin-bottom:10px">Add statement files to your <strong style="color:var(--txt)">statements/credit</strong> and <strong style="color:var(--txt)">statements/debit</strong> folders then click ↻ Parse Statements.</div>
+      <div style="font-size:11px;line-height:1.5;margin-bottom:10px">Add statement files to your <strong style="color:var(--txt)">Statements/Credit</strong> and <strong style="color:var(--txt)">Statements/Debit</strong> folders then click ↻ Parse Statements.</div>
       <button class="btn btn-acc btn-sm" onclick="showPg('settings',document.querySelector('.nb:last-child'))">Go to Settings</button>
     </div>`;
     return;
@@ -1175,7 +1178,7 @@ function renderPort(){
     g("port-kpi").innerHTML=`<div style="grid-column:1/-1;padding:30px;text-align:center">
       <div style="font-size:24px;margin-bottom:8px">📈</div>
       <div style="font-size:12px;font-weight:600;color:var(--txt);margin-bottom:6px">No portfolio data yet</div>
-      <div style="font-size:11px;color:var(--mut);margin-bottom:10px;line-height:1.5">Download a Positions CSV from Fidelity, drop it in <strong style="color:var(--txt)">statements/investments/</strong> and click ↻ Parse Statements.</div>
+      <div style="font-size:11px;color:var(--mut);margin-bottom:10px;line-height:1.5">Download a Positions CSV from Fidelity, drop it in <strong style="color:var(--txt)">Statements/Investments/</strong> and click ↻ Parse Statements.</div>
       <button class="btn btn-acc btn-sm" onclick="showPg('settings',document.querySelector('.nb:last-child'))">Go to Settings</button>
     </div>`;
     if(g("port-body"))g("port-body").innerHTML="";
@@ -1185,7 +1188,7 @@ function renderPort(){
   const snapDays=SNAP_DATE?Math.round((new Date()-new Date(SNAP_DATE.replace(/(\w+)-(\d+)-(\d+)/,"$3 $1 $2")))/86400000):0;
   const projMult=Math.pow(1+growth,Math.max(0,snapDays)/365);
   const hasLive=Object.keys(LIVE_PRICES).length>0;
-  if(SNAP_DATE)g("port-notice").textContent=`Fidelity snapshot: ${SNAP_DATE}${hasLive?" · Live prices loaded":" · No live prices — using projected growth"}. Drop new Portfolio CSV in statements/investments/ and Parse to update cost basis.`;
+  if(SNAP_DATE)g("port-notice").textContent=`Fidelity snapshot: ${SNAP_DATE}${hasLive?" · Live prices loaded":" · No live prices — using projected growth"}. Drop new Portfolio CSV in Statements/Investments/ and Parse to update cost basis.`;
 
   const totalCB=PORTFOLIO.reduce((s,p)=>s+p.quantity*p.avg_cost,0);
   const getPrice=p=>LIVE_PRICES[p.symbol]||(p.avg_cost*projMult);
