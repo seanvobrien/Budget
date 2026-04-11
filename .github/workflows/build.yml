@@ -48,7 +48,7 @@ jobs:
 
   # ── macOS ─────────────────────────────────────────────────────────────────────
   build-macos:
-    runs-on: macos-latest
+    runs-on: macos-13   # Intel x86_64 — runs on both Intel and Apple Silicon Macs
     steps:
       - uses: actions/checkout@v4
 
@@ -63,7 +63,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Build app
-        run: pyinstaller Budget.spec --noconfirm
+        run: pyinstaller Budget.spec --noconfirm --target-arch x86_64
 
       - name: Package distributable
         run: |

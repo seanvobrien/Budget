@@ -663,9 +663,9 @@ def get_data():
         "last_updated": datetime.fromtimestamp(p.stat().st_mtime).strftime("%Y-%m-%d %H:%M") if p.exists() else None,
         "tx_count": len(txns),
         "statement_counts": {
-            "credit":      len(list(_stmts_path("Credit").glob("*.*"))),
-            "debit":       len(list(_stmts_path("Debit").glob("*.*"))),
-            "investments": len(list(_stmts_path("Investments").glob("*.csv"))),
+            "credit":      len(list(_stmts_path("credit").glob("*.*"))),
+            "debit":       len(list(_stmts_path("debit").glob("*.*"))),
+            "investments": len(list(_stmts_path("investments").glob("*.csv"))),
         }
     })
 

@@ -838,6 +838,7 @@ async function runParser(){
   try{
     const r=await fetch(`${API}/parse`,{method:"POST"});const d=await r.json();
     if(d.ok){
+      await loadData();   // reload all data immediately after parse
       toast("Statements parsed! Dashboard updated.");
       if(d.parse_results&&d.parse_results.length) renderParseConfidence(d.parse_results);
     }
