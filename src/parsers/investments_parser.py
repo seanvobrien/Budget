@@ -65,10 +65,34 @@ def parse_investments_csv(path: Path) -> pd.DataFrame:
         log.error(f"[InvestmentsParser] Failed to read {path.name}: {e}")
         return pd.DataFrame()
 
-    required = {"Symbol", "Quantity", "Average Cost Basis"}
-    if not required.issubset(set(df.columns)):
-        log.warning(f"[InvestmentsParser] {path.name}: missing columns {required - set(df.columns)}")
-        return pd.DataFrame()
+    required_candidates = [
+        {"Symbol", "Quantity", "Average Cost Basis"},
+        {"Symbol", "Quantity", "Average Cost Basis Per Share"},
+        {"Symbol", "Quantity", "Cost Basis Total"},
+    ]
+    matched_cols = None
+    for candidate in required_candidates:
+        if candidate.issubset(set(df.columns)):
+            matched_cols = candidate
+            break
+
+    if not matched_cols:
+        # Try case-insensitive match
+        col_lower = {c.lower(): c for c in df.columns}
+        for alias in ["average cost basis per share", "average cost basis",
+                      "cost basis total", "avg cost basis", "avg. cost basis"]:
+            if alias in col_lower:
+                matched_cols = {"Symbol", "Quantity", col_lower[alias]}
+                break
+
+    if not matched_cols:
+        log.warning(f"[InvestmentsParser] {path.name}: missing cost basis column. "
+                    f"Columns found: {list(df.columns)}")
+        # Proceed without cost basis rather than failing completely
+        acb_col = None
+    else:
+        acb_col = next((c for c in matched_cols
+                        if "cost" in c.lower() or "basis" in c.lower()), None)
 
     # Detect account number column (varies slightly by export version)
     acct_col = next(
@@ -98,16 +122,24 @@ def parse_investments_csv(path: Path) -> pd.DataFrame:
             continue
 
         qty  = _clean_numeric(row.get("Quantity", 0))
-        acb  = _clean_numeric(row.get("Average Cost Basis", 0))
+        # Cost basis: "--" means not tracked (tax-advantaged accounts) — store as None
+        acb_raw = row.get(acb_col, "--") if acb_col else "--"
+        acb_str = str(acb_raw).strip()
+        if acb_str in ("--", "n/a", "na", "", "nan"):
+            acb = None   # not available — will show as N/A in UI
+        else:
+            acb = _clean_numeric(acb_raw)
+            if acb == 0.0 and acb_str not in ("0", "0.0", "$0.00"):
+                acb = None  # 0 from failed parse, treat as unknown
 
         if qty == 0:
             continue
 
         rows.append({
-            "Account_Symbol":    f"{current_account}_{sym}",
-            "Quantity":          qty,
-            "Average_Cost_Basis": acb,
-            "Filepath":          str(path),
+            "Account_Symbol":     f"{current_account}_{sym}",
+            "Quantity":           qty,
+            "Average_Cost_Basis": acb,  # None = not available (IRA/Roth)
+            "Filepath":           str(path),
         })
 
     if not rows:

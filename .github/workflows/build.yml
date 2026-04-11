@@ -1,14 +1,23 @@
 name: Build Budget App
 
 on:
-  push:
-    branches: [main]
-  workflow_dispatch:
+  workflow_dispatch:    # Manual trigger only — click "Run workflow" in GitHub Actions
+    inputs:
+      platform:
+        description: 'Which platform to build'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - windows-only
+          - mac-only
 
 jobs:
 
   # ── Windows ──────────────────────────────────────────────────────────────────
   build-windows:
+    if: inputs.platform == 'all' || inputs.platform == 'windows-only'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -48,6 +57,7 @@ jobs:
 
   # ── macOS Apple Silicon (M1/M2/M3/M4) ────────────────────────────────────────
   build-macos-arm:
+    if: inputs.platform == 'all' || inputs.platform == 'mac-only'
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -75,75 +85,37 @@ jobs:
           mkdir -p dist/BudgetApp/output
           cp Budget.ico dist/BudgetApp/Budget.ico
           python3 build_defaults.py dist/BudgetApp
-          cd dist && zip -r Budget-Mac-AppleSilicon.zip BudgetApp
+          cd dist && zip -r Budget-Mac.zip BudgetApp
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Budget-Mac-AppleSilicon
-          path: dist/Budget-Mac-AppleSilicon.zip
-          retention-days: 90
-
-  # ── macOS Intel (2019 and older Macs) ────────────────────────────────────────
-  build-macos-intel:
-    runs-on: macos-12
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install dependencies
-        run: |
-          pip install pyinstaller
-          pip install -r requirements.txt
-
-      - name: Build app
-        run: pyinstaller Budget.spec --noconfirm
-
-      - name: Package distributable
-        run: |
-          mkdir -p dist/BudgetApp
-          cp -r "dist/Budget.app" dist/BudgetApp/
-          mkdir -p dist/BudgetApp/statements/credit
-          mkdir -p dist/BudgetApp/statements/debit
-          mkdir -p dist/BudgetApp/statements/investments
-          mkdir -p dist/BudgetApp/output
-          cp Budget.ico dist/BudgetApp/Budget.ico
-          python3 build_defaults.py dist/BudgetApp
-          cd dist && zip -r Budget-Mac-Intel.zip BudgetApp
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Budget-Mac-Intel
-          path: dist/Budget-Mac-Intel.zip
+          name: Budget-Mac
+          path: dist/Budget-Mac.zip
           retention-days: 90
 
   # ── Release ───────────────────────────────────────────────────────────────────
   release:
-    needs: [build-windows, build-macos-arm, build-macos-intel]
+    needs: [build-windows, build-macos-arm]
+    if: always() && (needs.build-windows.result == 'success' || needs.build-macos-arm.result == 'success' || needs.build-macos-intel.result == 'success')
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/download-artifact@v4
+      - name: Download Windows artifact
+        if: needs.build-windows.result == 'success'
+        uses: actions/download-artifact@v4
         with:
           name: Budget-Windows
           path: release/
 
-      - uses: actions/download-artifact@v4
+      - name: Download Mac ARM artifact
+        if: needs.build-macos-arm.result == 'success'
+        uses: actions/download-artifact@v4
         with:
-          name: Budget-Mac-AppleSilicon
-          path: release/
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: Budget-Mac-Intel
+          name: Budget-Mac
           path: release/
 
       - name: Publish Release
@@ -157,17 +129,14 @@ jobs:
             | Platform | File | For |
             |---|---|---|
             | Windows | Budget-Windows.zip | All Windows PCs |
-            | Mac (Apple Silicon) | Budget-Mac-AppleSilicon.zip | M1/M2/M3/M4 Macs (2020 and newer) |
-            | Mac (Intel) | Budget-Mac-Intel.zip | Intel Macs (2019 and older) |
+            | Mac | Budget-Mac.zip | All Macs (M1/M2/M3/M4 native · Intel via Rosetta 2) |
 
-            **Not sure which Mac you have?** Apple menu → About This Mac → look for "Apple M" (Silicon) or "Intel" in the chip/processor line.
+            **Intel Mac users:** The Mac build runs on Intel Macs automatically via Rosetta 2 (built into macOS Big Sur and later). If you're on Catalina or older, upgrade macOS first.
 
-            Unzip, double-click `Budget.app` (Mac) or `Budget.exe` (Windows).
-            The app opens in your browser automatically.
+            Unzip, double-click `Budget.app` (Mac) or `Budget.exe` (Windows). Opens in your browser automatically.
 
-            > **Mac note:** On first launch right-click → Open → Open Anyway to bypass Gatekeeper.
+            > **Mac note:** Right-click → Open → Open Anyway on first launch to bypass Gatekeeper.
           files: |
             release/Budget-Windows.zip
-            release/Budget-Mac-AppleSilicon.zip
-            release/Budget-Mac-Intel.zip
+            release/Budget-Mac.zip
           make_latest: true
