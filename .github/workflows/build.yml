@@ -1,0 +1,126 @@
+name: Build Budget App
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+
+  # ── Windows ──────────────────────────────────────────────────────────────────
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install pyinstaller
+          pip install -r requirements.txt
+
+      - name: Build exe
+        run: pyinstaller Budget.spec --noconfirm
+
+      - name: Package distributable
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path dist\BudgetApp
+          Copy-Item dist\Budget.exe dist\BudgetApp\Budget.exe
+          Copy-Item Budget.ico dist\BudgetApp\Budget.ico
+          New-Item -ItemType Directory -Path dist\BudgetApp\statements\credit
+          New-Item -ItemType Directory -Path dist\BudgetApp\statements\debit
+          New-Item -ItemType Directory -Path dist\BudgetApp\statements\investments
+          New-Item -ItemType Directory -Path dist\BudgetApp\output
+          python build_defaults.py dist\BudgetApp
+          Compress-Archive -Path dist\BudgetApp -DestinationPath dist\Budget-Windows.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Budget-Windows
+          path: dist/Budget-Windows.zip
+          retention-days: 90
+
+  # ── macOS ─────────────────────────────────────────────────────────────────────
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install pyinstaller
+          pip install -r requirements.txt
+
+      - name: Build app
+        run: pyinstaller Budget.spec --noconfirm
+
+      - name: Package distributable
+        run: |
+          mkdir -p dist/BudgetApp
+          cp -r "dist/Budget.app" dist/BudgetApp/
+          mkdir -p dist/BudgetApp/statements/credit
+          mkdir -p dist/BudgetApp/statements/debit
+          mkdir -p dist/BudgetApp/statements/investments
+          mkdir -p dist/BudgetApp/output
+          cp Budget.ico dist/BudgetApp/Budget.ico
+          python3 build_defaults.py dist/BudgetApp
+          cd dist && zip -r Budget-Mac.zip BudgetApp
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Budget-Mac
+          path: dist/Budget-Mac.zip
+          retention-days: 90
+
+  # ── Release — runs after both builds pass, creates public download links ──────
+  release:
+    needs: [build-windows, build-macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: Budget-Windows
+          path: release/
+
+      - name: Download Mac artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: Budget-Mac
+          path: release/
+
+      - name: Publish Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: "Budget App — Latest"
+          body: |
+            ## Download
+
+            | Platform | File |
+            |---|---|
+            | Windows | Budget-Windows.zip |
+            | Mac | Budget-Mac.zip |
+
+            Unzip, double-click `Budget.exe` (Windows) or `Budget.app` (Mac).
+            The app opens in your browser automatically.
+          files: |
+            release/Budget-Windows.zip
+            release/Budget-Mac.zip
+          make_latest: true

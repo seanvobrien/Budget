@@ -1,0 +1,34 @@
+# Personal data — never commit these
+settings.json
+savings_plan.json
+overrides.json
+
+# Statement files — your personal bank exports
+statements/
+output/
+
+# Python build artifacts
+__pycache__/
+*.pyc
+*.pyo
+.Python
+dist/
+build/
+*.egg-info/
+
+# PyInstaller
+*.spec.bak
+
+# Mac OS
+.DS_Store
+**/.DS_Store
+
+# Windows
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.shortcut_created
