@@ -11,17 +11,21 @@ app = Flask(__name__)
 CORS(app)
 
 # ── Path setup ────────────────────────────────────────────────────────────────
-# When running as a PyInstaller bundle:
-#   BUNDLE_DIR = sys._MEIPASS  — read-only bundled assets (budget.html, src/, run.py)
-#   BASE_DIR   = exe location  — user data lives here (output/, JSON, statements/)
-# When running normally in development both point to the same place.
-
 if getattr(sys, 'frozen', False):
     BUNDLE_DIR = Path(sys._MEIPASS)
     BASE_DIR   = Path(sys.executable).parent
 else:
     BUNDLE_DIR = Path(__file__).parent
     BASE_DIR   = Path(__file__).parent
+
+# ── Load .env file if present (keeps API keys out of git) ────────────────────
+_env_file = BASE_DIR / ".env"
+if _env_file.exists():
+    for _line in _env_file.read_text(encoding="utf-8").splitlines():
+        _line = _line.strip()
+        if _line and not _line.startswith("#") and "=" in _line:
+            _k, _, _v = _line.partition("=")
+            os.environ.setdefault(_k.strip(), _v.strip().strip('"').strip("'"))
 
 OUTPUT_DIR     = BASE_DIR / "output"
 PLAN_FILE      = BASE_DIR / "savings_plan.json"
@@ -55,6 +59,7 @@ def save_json(path, data):
 DEFAULT_SETTINGS = {
     "names": {"p1": "Person 1", "p2": "Person 2"},
     "custom_cats": [],
+    "groq_api_key": "",
     "income": {
         "salary":              0,
         "bonus":               0,
@@ -591,6 +596,16 @@ def favicon():
     if ico.exists():
         return send_file(ico, mimetype="image/x-icon")
     return "", 204
+
+@app.route("/api/groq-key", methods=["GET","POST"])
+def groq_key():
+    global SETTINGS
+    if request.method == "POST":
+        key = (request.json or {}).get("key", "").strip()
+        SETTINGS["groq_api_key"] = key
+        save_json(SETTINGS_FILE, SETTINGS)
+        return jsonify({"ok": True})
+    return jsonify({"key": SETTINGS.get("groq_api_key", "")})
 
 @app.route("/api/shutdown", methods=["POST"])
 def shutdown():

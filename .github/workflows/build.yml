@@ -1,23 +1,14 @@
 name: Build Budget App
 
 on:
-  workflow_dispatch:    # Manual trigger only — click "Run workflow" in GitHub Actions
-    inputs:
-      platform:
-        description: 'Which platform to build'
-        required: true
-        default: 'all'
-        type: choice
-        options:
-          - all
-          - windows-only
-          - mac-only
+  push:
+    branches: [main]
+  workflow_dispatch:
 
 jobs:
 
   # ── Windows ──────────────────────────────────────────────────────────────────
   build-windows:
-    if: inputs.platform == 'all' || inputs.platform == 'windows-only'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -55,9 +46,8 @@ jobs:
           path: dist/Budget-Windows.zip
           retention-days: 90
 
-  # ── macOS Apple Silicon (M1/M2/M3/M4) ────────────────────────────────────────
-  build-macos-arm:
-    if: inputs.platform == 'all' || inputs.platform == 'mac-only'
+  # ── macOS ────────────────────────────────────────
+  build-macos:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -96,8 +86,8 @@ jobs:
 
   # ── Release ───────────────────────────────────────────────────────────────────
   release:
-    needs: [build-windows, build-macos-arm]
-    if: always() && (needs.build-windows.result == 'success' || needs.build-macos-arm.result == 'success' || needs.build-macos-intel.result == 'success')
+    needs: [build-windows, build-macos]
+    if: always() && (needs.build-windows.result == 'success' || needs.build-macos.result == 'success')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -112,7 +102,7 @@ jobs:
           path: release/
 
       - name: Download Mac ARM artifact
-        if: needs.build-macos-arm.result == 'success'
+        if: needs.build-macos.result == 'success'
         uses: actions/download-artifact@v4
         with:
           name: Budget-Mac
