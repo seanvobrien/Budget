@@ -306,6 +306,14 @@ def run_parser():
         return {"ok": False, "error": str(e), "parse_results": []}
     finally:
         if tmp_dir and tmp_dir.exists():
+            # Copy parsed output back to the real output folder before cleanup
+            tmp_output = tmp_dir / "output"
+            if tmp_output.exists():
+                OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+                import shutil as _sh
+                for f in tmp_output.iterdir():
+                    _sh.copy2(str(f), str(OUTPUT_DIR / f.name))
+                add_log(f"Output copied to {OUTPUT_DIR}", "info")
             shutil.rmtree(str(tmp_dir), ignore_errors=True)
 
 def load_transactions():
