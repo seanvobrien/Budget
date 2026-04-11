@@ -48,328 +48,567 @@ DATE_FORMATS = [
 #               "skip_rows": int }             # header disclaimer rows
 # ─────────────────────────────────────────────────────────────────────────────
 BANK_CSV_SCHEMAS = {
-    # Apple Card exported CSV from Wallet app
+
+    # ── Apple Card ────────────────────────────────────────────────────────────
+    # CSV from Wallet app: Transaction Date, Clearing Date, Description, Merchant,
+    #   Merchant ID, Category, Buy Price, Amount (USD), Purchased By
     "apple_card": {
-        "match": ["Transaction Date", "Description", "Merchant", "Amount"],
-        "date":   "Transaction Date",
-        "payee":  "Description",
-        "amount": "Amount",
-        "sign":   "normal",   # positive = expense
+        "match": ["Transaction Date", "Description", "Amount (USD)"],
+        "match_any": [
+            ["Transaction Date", "Description", "Merchant", "Amount (USD)"],
+            ["Transaction Date", "Description", "Amount (USD)"],
+            ["Transaction Date", "Clearing Date", "Description", "Amount (USD)"],
+        ],
+        "date":        "Transaction Date",
+        "payee":       "Merchant",          # cleaner than Description
+        "payee_fallbacks": ["Description"],  # if Merchant blank
+        "amount":      "Amount (USD)",
+        "amount_fallbacks": ["Amount"],
+        "sign":        "normal",            # positive = expense
     },
-    # Chase credit card CSV
+
+    # ── Chase Credit Card ─────────────────────────────────────────────────────
+    # Transaction Date, Post Date, Description, Category, Type, Amount, Memo
     "chase_cc": {
-        "match": ["Transaction Date", "Post Date", "Description", "Category", "Type", "Amount"],
-        "date":   "Transaction Date",
-        "payee":  "Description",
-        "amount": "Amount",
-        "sign":   "normal",   # positive = expense
+        "match": ["Transaction Date", "Post Date", "Description", "Amount"],
+        "match_any": [
+            ["Transaction Date", "Post Date", "Description", "Category", "Type", "Amount"],
+            ["Transaction Date", "Post Date", "Description", "Amount"],
+            ["Transaction Date", "Description", "Category", "Amount"],
+        ],
+        "date":        "Transaction Date",
+        "payee":       "Description",
+        "payee_fallbacks": ["Merchant Name", "Memo"],
+        "amount":      "Amount",
+        "sign":        "normal",            # Chase CC: positive = expense
     },
-    # Chase checking CSV (Activity download)
+
+    # ── Chase Checking ────────────────────────────────────────────────────────
+    # Details, Posting Date, Description, Amount, Type, Balance, Check or Slip #
     "chase_checking": {
-        "match": ["Details", "Posting Date", "Description", "Amount", "Type", "Balance"],
-        "date":   "Posting Date",
-        "payee":  "Description",
-        "amount": "Amount",
-        "sign":   "inverted",  # positive = deposit, negative = expense → flip
+        "match": ["Details", "Posting Date", "Description", "Amount"],
+        "match_any": [
+            ["Details", "Posting Date", "Description", "Amount", "Type", "Balance"],
+            ["Details", "Posting Date", "Description", "Amount"],
+        ],
+        "date":        "Posting Date",
+        "date_fallbacks": ["Date"],
+        "payee":       "Description",
+        "amount":      "Amount",
+        "sign":        "inverted",          # positive=deposit → flip so expense=positive
     },
-    # Fidelity Cash Management / Checking
+
+    # ── Fidelity Cash Management Checking ────────────────────────────────────
+    # Run Date, Account, Action, Symbol, Description, Type, Quantity,
+    # Price ($), Commission ($), Amount ($), Settlement Date
     "fidelity_checking": {
-        "match": ["Date", "Transaction", "Name", "Memo", "Amount"],
-        "date":   "Date",
-        "payee":  "Name",
-        "amount": "Amount",
-        "sign":   "inverted",  # negative = expense in Fidelity
-        "skip_header_rows": 4,  # Fidelity prepends legal disclaimer rows
+        "match": ["Run Date", "Account", "Action", "Amount ($)"],
+        "date":        "Run Date",
+        "payee":       "Description",       # merchant name in Description when populated
+        "payee_fallbacks": ["Action"],      # fallback: "DIRECT DEBIT", "ATM", etc.
+        "amount":      "Amount ($)",
+        "sign":        "normal",            # parentheses = expense, already handled
+        "account_filter": "CHECKING",       # exclude brokerage rows
     },
-    # Fidelity History / Activity export (alternate format)
+
+    # ── Fidelity History (brokerage — excluded from debit/credit) ─────────────
     "fidelity_history": {
-        "match": ["Run Date", "Account", "Action", "Symbol", "Description", "Type",
-                  "Quantity", "Price ($)", "Commission ($)", "Amount ($)"],
-        "date":   "Run Date",
-        "payee":  "Description",
-        "amount": "Amount ($)",
-        "sign":   "inverted",
+        "match": ["Run Date", "Account", "Action", "Symbol", "Amount ($)"],
+        "date":        "Run Date",
+        "payee":       "Description",
+        "payee_fallbacks": ["Action"],
+        "amount":      "Amount ($)",
+        "sign":        "normal",
+        "account_filter": "CHECKING",
+        "investment_only": True,
     },
-    # Citi credit card
+
+    # ── Citi Credit Card ──────────────────────────────────────────────────────
+    # Date, Description, Debit, Credit  OR  Date, Description, Amount
     "citi_cc": {
         "match": ["Date", "Description", "Debit", "Credit"],
-        "date":   "Date",
-        "payee":  "Description",
-        "debit":  "Debit",
-        "credit": "Credit",
-        "sign":   "normal",
+        "match_any": [
+            ["Date", "Description", "Debit", "Credit"],
+            ["Date", "Description", "Amount", "Member Name"],  # Citi v2
+        ],
+        "date":        "Date",
+        "date_fallbacks": ["Transaction Date"],
+        "payee":       "Description",
+        "debit":       "Debit",
+        "credit":      "Credit",
+        "amount":      "Amount",            # fallback if no split cols
+        "sign":        "normal",
     },
-    # American Express CSV
+
+    # ── American Express ──────────────────────────────────────────────────────
+    # Date, Description, Amount   (Amount: positive = charge, negative = payment)
     "amex": {
         "match": ["Date", "Description", "Amount"],
-        "date":   "Date",
-        "payee":  "Description",
-        "amount": "Amount",
-        "sign":   "inverted",  # Amex: negative = charge, positive = payment
+        "match_any": [
+            ["Date", "Description", "Amount", "Extended Details"],
+            ["Date", "Description", "Amount"],
+        ],
+        "date":        "Date",
+        "payee":       "Description",
+        "payee_fallbacks": ["Merchant", "Appears On Your Statement As"],
+        "amount":      "Amount",
+        "sign":        "normal",            # CORRECT: Amex CSV positive=charge (expense)
     },
-    # Amex extended CSV (with extra columns)
+
+    # ── American Express Extended ─────────────────────────────────────────────
+    # Date, Description, Amount, Extended Details, Appears On Your Statement As,
+    # Address, City/State, Zip, Country, Reference, Category
     "amex_extended": {
-        "match": ["Date", "Description", "Amount", "Extended Details", "Appears On Your Statement As"],
-        "date":   "Date",
-        "payee":  "Description",
-        "amount": "Amount",
-        "sign":   "inverted",
+        "match": ["Date", "Description", "Amount", "Extended Details"],
+        "date":        "Date",
+        "payee":       "Appears On Your Statement As",
+        "payee_fallbacks": ["Description", "Merchant"],
+        "amount":      "Amount",
+        "sign":        "normal",            # positive = charge
     },
-    # Capital One credit card
+
+    # ── Capital One Credit Card ───────────────────────────────────────────────
+    # Transaction Date, Posted Date, Card No., Description, Category, Debit, Credit
     "capital_one_cc": {
-        "match": ["Transaction Date", "Posted Date", "Card No.", "Description", "Category",
-                  "Debit", "Credit"],
-        "date":   "Transaction Date",
-        "payee":  "Description",
-        "debit":  "Debit",
-        "credit": "Credit",
-        "sign":   "normal",
+        "match": ["Transaction Date", "Posted Date", "Description", "Debit", "Credit"],
+        "match_any": [
+            ["Transaction Date", "Posted Date", "Card No.", "Description", "Debit", "Credit"],
+            ["Transaction Date", "Posted Date", "Description", "Debit", "Credit"],
+            ["Transaction Date", "Posted Date", "Card Number", "Description", "Debit", "Credit"],
+        ],
+        "date":        "Transaction Date",
+        "payee":       "Description",
+        "debit":       "Debit",
+        "credit":      "Credit",
+        "sign":        "normal",
     },
-    # Capital One checking
+
+    # ── Capital One Checking ──────────────────────────────────────────────────
+    # Transaction Date, Transaction Type, Transaction Description,
+    # Debit, Credit, Balance
     "capital_one_checking": {
         "match": ["Transaction Date", "Transaction Type", "Transaction Description",
-                  "Debit", "Credit", "Balance"],
-        "date":   "Transaction Date",
-        "payee":  "Transaction Description",
-        "debit":  "Debit",
-        "credit": "Credit",
-        "sign":   "normal",
+                  "Debit", "Credit"],
+        "date":        "Transaction Date",
+        "payee":       "Transaction Description",
+        "payee_fallbacks": ["Description"],
+        "debit":       "Debit",
+        "credit":      "Credit",
+        "sign":        "normal",
     },
-    # Bank of America (exported as CSV from XLS)
+
+    # ── Bank of America Checking ──────────────────────────────────────────────
+    # Date, Description, Amount, Running Bal.
     "bofa": {
-        "match": ["Date", "Description", "Amount", "Running Bal."],
-        "date":   "Date",
-        "payee":  "Description",
-        "amount": "Amount",
-        "sign":   "inverted",  # BofA: negative = expense
+        "match": ["Date", "Description", "Amount"],
+        "match_any": [
+            ["Date", "Description", "Amount", "Running Bal."],
+            ["Date", "Description", "Amount", "Running Bal"],   # no period variant
+        ],
+        "date":        "Date",
+        "payee":       "Description",
+        "amount":      "Amount",
+        "sign":        "inverted",          # BofA: negative=expense positive=deposit
     },
-    # Bank of America credit card
+
+    # ── Bank of America Credit Card ───────────────────────────────────────────
+    # Posted Date, Reference Number, Payee, Address, Amount
     "bofa_cc": {
-        "match": ["Posted Date", "Reference Number", "Payee", "Address", "Amount"],
-        "date":   "Posted Date",
-        "payee":  "Payee",
-        "amount": "Amount",
-        "sign":   "inverted",
+        "match": ["Posted Date", "Payee", "Amount"],
+        "match_any": [
+            ["Posted Date", "Reference Number", "Payee", "Address", "Amount"],
+            ["Posted Date", "Payee", "Amount"],
+            ["Transaction Date", "Payee", "Amount"],
+        ],
+        "date":        "Posted Date",
+        "date_fallbacks": ["Transaction Date", "Date"],
+        "payee":       "Payee",
+        "payee_fallbacks": ["Description"],
+        "amount":      "Amount",
+        "sign":        "inverted",          # BofA CC: negative=charge positive=payment
     },
-    # Wells Fargo (no column headers in CSV — positional)
+
+    # ── Wells Fargo (positional — no headers) ─────────────────────────────────
+    # Checking: Date, Amount, *, Description, Balance (5 cols, no header row)
+    # Credit:   Date, Amount, *, Description (4 cols)
     "wells_fargo": {
-        "match": [],        # detected by column count / content
-        "positional": True, # date=col0, desc=col1, amount=col2 or col4
-        "sign":   "normal",
+        "match":      [],
+        "positional": True,
+        "sign":       "inverted",           # WF: negative=debit positive=deposit
+        "positional_map": {
+            5: {"date": 0, "amount": 1, "payee": 4},   # checking: bal in col 4
+            4: {"date": 0, "amount": 1, "payee": 3},   # credit card
+        },
     },
-    # Discover credit card
+
+    # ── Discover Credit Card ──────────────────────────────────────────────────
+    # Trans. Date, Post Date, Description, Amount, Category
     "discover": {
-        "match": ["Trans. Date", "Post Date", "Description", "Amount", "Category"],
-        "date":   "Trans. Date",
-        "payee":  "Description",
-        "amount": "Amount",
-        "sign":   "inverted",  # Discover: negative = purchase
+        "match": ["Description", "Amount"],
+        "match_any": [
+            ["Trans. Date", "Post Date", "Description", "Amount", "Category"],
+            ["Transaction Date", "Post Date", "Description", "Amount", "Category"],
+            ["Trans. Date", "Post Date", "Description", "Amount"],
+        ],
+        "date":        "Trans. Date",
+        "date_fallbacks": ["Transaction Date", "Date"],
+        "payee":       "Description",
+        "amount":      "Amount",
+        "sign":        "normal",            # Discover CSV: positive=charge negative=payment
     },
-    # US Bank
+
+    # ── US Bank ───────────────────────────────────────────────────────────────
+    # Date, Transaction, Name, Memo, Amount
     "us_bank": {
         "match": ["Date", "Transaction", "Name", "Memo", "Amount"],
-        "date":   "Date",
-        "payee":  "Name",
-        "amount": "Amount",
-        "sign":   "inverted",
+        "date":        "Date",
+        "payee":       "Name",
+        "payee_fallbacks": ["Memo", "Transaction"],  # Name is often blank
+        "amount":      "Amount",
+        "sign":        "inverted",          # US Bank: negative=debit
     },
-    # Barclays
+
+    # ── Barclays ──────────────────────────────────────────────────────────────
+    # Transaction Date, Transaction Type, Sort Code, Account Number,
+    # Transaction Description, Debit Amount, Credit Amount, Balance
     "barclays": {
-        "match": ["Transaction Date", "Transaction Type", "Sort Code",
-                  "Account Number", "Transaction Description", "Debit Amount",
-                  "Credit Amount", "Balance"],
-        "date":   "Transaction Date",
-        "payee":  "Transaction Description",
-        "debit":  "Debit Amount",
-        "credit": "Credit Amount",
-        "sign":   "normal",
+        "match": ["Transaction Date", "Transaction Description", "Debit Amount", "Credit Amount"],
+        "match_any": [
+            ["Transaction Date", "Transaction Type", "Sort Code",
+             "Account Number", "Transaction Description", "Debit Amount", "Credit Amount"],
+            ["Transaction Date", "Transaction Description", "Debit Amount", "Credit Amount"],
+        ],
+        "date":        "Transaction Date",
+        "payee":       "Transaction Description",
+        "payee_fallbacks": ["Transaction Type"],
+        "debit":       "Debit Amount",
+        "credit":      "Credit Amount",
+        "sign":        "normal",
     },
-    # Charles Schwab checking: "Date","Type","Check #","Description","Withdrawal (-)","Deposit (+)","RunningBalance"
+
+    # ── Charles Schwab Checking ───────────────────────────────────────────────
+    # "Date","Type","Check #","Description","Withdrawal (-)","Deposit (+)","RunningBalance"
+    # Newer format may drop parens: "Withdrawal","Deposit"
     "schwab_checking": {
-        "match": ["Date", "Type", "Check #", "Description", "Withdrawal (-)", "Deposit (+)", "RunningBalance"],
-        "date":   "Date",
-        "payee":  "Description",
-        "debit":  "Withdrawal (-)",
-        "credit": "Deposit (+)",
-        "sign":   "normal",
+        "match": ["Date", "Description"],
+        "match_any": [
+            ["Date", "Type", "Check #", "Description", "Withdrawal (-)", "Deposit (+)"],
+            ["Date", "Type", "Description", "Withdrawal (-)", "Deposit (+)"],
+            ["Date", "Type", "Description", "Withdrawal", "Deposit"],
+        ],
+        "date":        "Date",
+        "payee":       "Description",
+        "debit":       "Withdrawal (-)",
+        "debit_fallbacks": ["Withdrawal"],
+        "credit":      "Deposit (+)",
+        "credit_fallbacks": ["Deposit"],
+        "sign":        "normal",
     },
-    # Charles Schwab brokerage history export
+
+    # ── Charles Schwab Brokerage (investment — excluded from spending) ─────────
+    # Date, Action, Symbol, Description, Quantity, Price ($), Fees ($), Amount ($)
     "schwab_brokerage": {
-        "match": ["Date", "Action", "Symbol", "Description", "Quantity", "Price ($)", "Fees ($)", "Amount ($)"],
-        "date":   "Date",
-        "payee":  "Description",
-        "amount": "Amount ($)",
-        "sign":   "inverted",  # negative = money out in Schwab brokerage
+        "match": ["Date", "Action", "Symbol", "Description", "Quantity", "Price ($)", "Amount ($)"],
+        "date":        "Date",
+        "payee":       "Description",
+        "payee_fallbacks": ["Action"],
+        "amount":      "Amount ($)",
+        "sign":        "inverted",
+        "investment_only": True,
     },
-    # PNC checking CSV: Date, Description, Withdrawals, Deposits, Balance
+
+    # ── PNC Checking ──────────────────────────────────────────────────────────
+    # Date, Description, Withdrawals, Deposits, Balance
     "pnc_checking": {
-        "match": ["Date", "Description", "Withdrawals", "Deposits", "Balance"],
-        "date":   "Date",
-        "payee":  "Description",
-        "debit":  "Withdrawals",
-        "credit": "Deposits",
-        "sign":   "normal",
+        "match": ["Date", "Description", "Withdrawals", "Deposits"],
+        "match_any": [
+            ["Date", "Description", "Withdrawals", "Deposits", "Balance"],
+            ["Date", "Description", "Withdrawals", "Deposits"],
+        ],
+        "date":        "Date",
+        "payee":       "Description",
+        "debit":       "Withdrawals",
+        "debit_fallbacks": ["Withdrawal"],
+        "credit":      "Deposits",
+        "credit_fallbacks": ["Deposit"],
+        "sign":        "normal",
     },
-    # PNC credit card
+
+    # ── PNC Credit Card ───────────────────────────────────────────────────────
+    # Transaction Date, Posted Date, Description, Amount, Transaction Type
     "pnc_cc": {
-        "match": ["Transaction Date", "Posted Date", "Description", "Amount", "Transaction Type"],
-        "date":   "Transaction Date",
-        "payee":  "Description",
-        "amount": "Amount",
-        "sign":   "inverted",  # PNC CC: negative = charge
+        "match": ["Transaction Date", "Posted Date", "Description", "Amount"],
+        "date":        "Transaction Date",
+        "payee":       "Description",
+        "amount":      "Amount",
+        "sign":        "normal",            # PNC CC: positive=charge
     },
-    # TD Bank checking/savings
+
+    # ── TD Bank ───────────────────────────────────────────────────────────────
+    # Date, Description, Debit, Credit, Balance
+    # Or: Account Number, Date, Description, Debit, Credit, Balance
     "td_bank": {
         "match": ["Date", "Description", "Debit", "Credit", "Balance"],
-        "date":   "Date",
-        "payee":  "Description",
-        "debit":  "Debit",
-        "credit": "Credit",
-        "sign":   "normal",
+        "match_any": [
+            ["Account Number", "Date", "Description", "Debit", "Credit", "Balance"],
+            ["Date", "Description", "Debit", "Credit", "Balance"],
+            ["Date", "Description", "Type", "Debit", "Credit", "Balance"],
+        ],
+        "date":        "Date",
+        "payee":       "Description",
+        "debit":       "Debit",
+        "credit":      "Credit",
+        "sign":        "normal",
     },
-    # TD Bank alternate (with Account Number column)
-    "td_bank_v2": {
-        "match": ["Account Number", "Date", "Description", "Debit", "Credit", "Balance"],
-        "date":   "Date",
-        "payee":  "Description",
-        "debit":  "Debit",
-        "credit": "Credit",
-        "sign":   "normal",
-    },
-    # Ally Bank: Date, Time, Amount, Type, Description
+
+    # ── Ally Bank ─────────────────────────────────────────────────────────────
+    # Date, Time, Amount, Type, Description
     "ally_bank": {
-        "match": ["Date", "Time", "Amount", "Type", "Description"],
-        "date":   "Date",
-        "payee":  "Description",
-        "amount": "Amount",
-        "sign":   "inverted",  # Ally: negative = expense
+        "match": ["Date", "Amount", "Type", "Description"],
+        "match_any": [
+            ["Date", "Time", "Amount", "Type", "Description"],
+            ["Date", "Amount", "Type", "Description"],
+        ],
+        "date":        "Date",
+        "payee":       "Description",
+        "payee_fallbacks": ["Type"],
+        "amount":      "Amount",
+        "sign":        "normal",            # Ally: positive=expense negative=deposit
     },
-    # Navy Federal Credit Union
+
+    # ── Navy Federal Credit Union ─────────────────────────────────────────────
+    # Transaction Date, Amount, Description, Balance, Memo
     "navy_federal": {
-        "match": ["Transaction Date", "Amount", "Description", "Balance", "Memo"],
-        "date":   "Transaction Date",
-        "payee":  "Description",
-        "amount": "Amount",
-        "sign":   "inverted",  # NFCU: negative = expense
+        "match": ["Transaction Date", "Amount", "Description", "Balance"],
+        "match_any": [
+            ["Transaction Date", "Amount", "Description", "Balance", "Memo"],
+            ["Transaction Date", "Amount", "Description", "Balance"],
+        ],
+        "date":        "Transaction Date",
+        "payee":       "Description",
+        "payee_fallbacks": ["Memo"],
+        "amount":      "Amount",
+        "sign":        "inverted",          # NFCU: negative=debit
     },
-    # USAA bank/credit card
+
+    # ── USAA ─────────────────────────────────────────────────────────────────
+    # Date, Description, Original Description, Category, Amount, Status
     "usaa": {
-        "match": ["Date", "Description", "Original Description", "Category", "Amount", "Status"],
-        "date":   "Date",
-        "payee":  "Description",
-        "amount": "Amount",
-        "sign":   "normal",   # USAA: positive = expense
+        "match": ["Date", "Description", "Original Description", "Amount"],
+        "match_any": [
+            ["Date", "Description", "Original Description", "Category", "Amount", "Status"],
+            ["Date", "Description", "Original Description", "Amount"],
+        ],
+        "date":        "Date",
+        "payee":       "Description",
+        "payee_fallbacks": ["Original Description"],
+        "amount":      "Amount",
+        "sign":        "normal",            # USAA: positive=expense
     },
-    # PayPal CSV export
+
+    # ── PayPal ────────────────────────────────────────────────────────────────
+    # Date, Time, TimeZone, Name, Type, Status, Currency, Gross, Fee, Net,
+    # From Email, To Email, Transaction ID, ...
     "paypal": {
-        "match": ["Date", "Time", "TimeZone", "Name", "Type", "Status", "Currency", "Gross", "Fee", "Net"],
-        "date":   "Date",
-        "payee":  "Name",
-        "amount": "Gross",
-        "sign":   "inverted",  # PayPal: negative = money sent (expense)
+        "match": ["Date", "Name", "Gross", "Currency"],
+        "match_any": [
+            ["Date", "Time", "TimeZone", "Name", "Type", "Status", "Currency", "Gross"],
+            ["Date", "Name", "Type", "Status", "Currency", "Gross"],
+            ["Date", "Name", "Gross"],
+        ],
+        "date":        "Date",
+        "payee":       "Name",
+        "payee_fallbacks": ["Type"],
+        "amount":      "Gross",
+        "amount_fallbacks": ["Net"],
+        "sign":        "inverted",          # PayPal: negative=you sent (expense)
+        "status_filter": "Completed",       # skip pending/reversed
+        "currency_filter": "USD",           # skip foreign currency rows
     },
-    # Mint CSV export (personal finance app export)
+
+    # ── Mint (Intuit) ─────────────────────────────────────────────────────────
+    # Date, Description, Original Description, Amount, Transaction Type,
+    # Category, Account Name, Labels, Notes
     "mint": {
-        "match": ["Date", "Description", "Original Description", "Amount",
-                  "Transaction Type", "Category", "Account Name"],
-        "date":   "Date",
-        "payee":  "Description",
-        "amount": "Amount",
-        "sign":   "normal",   # Mint separates by Transaction Type column
-        "type_col": "Transaction Type",  # "debit" vs "credit"
+        "match": ["Date", "Description", "Original Description", "Transaction Type"],
+        "match_any": [
+            ["Date", "Description", "Original Description", "Amount",
+             "Transaction Type", "Category", "Account Name"],
+            ["Date", "Description", "Amount", "Transaction Type"],
+        ],
+        "date":        "Date",
+        "payee":       "Description",
+        "payee_fallbacks": ["Original Description"],
+        "amount":      "Amount",
+        "sign":        "normal",
+        "type_col":    "Transaction Type",  # "debit"/"credit" determines sign
     },
-    # Venmo CSV
+
+    # ── Venmo ─────────────────────────────────────────────────────────────────
+    # ID, Datetime, Type, Status, Note, From, To, Amount (total),
+    # Amount (tip), Amount (tax), Amount (fee)
     "venmo": {
-        "match": ["ID", "Datetime", "Type", "Status", "Note", "From", "To",
-                  "Amount (total)", "Amount (tip)", "Amount (tax)"],
-        "date":   "Datetime",
-        "payee":  "Note",
-        "amount": "Amount (total)",
-        "sign":   "inverted",  # Venmo: negative = you paid, positive = received
+        "match": ["Datetime", "Note", "Amount (total)"],
+        "match_any": [
+            ["ID", "Datetime", "Type", "Status", "Note", "From", "To", "Amount (total)"],
+            ["Datetime", "Note", "Amount (total)"],
+        ],
+        "date":        "Datetime",
+        "payee":       "Note",
+        "payee_fallbacks": ["To", "From"],  # Note is often blank
+        "amount":      "Amount (total)",
+        "amount_fallbacks": ["Amount"],
+        "sign":        "inverted",          # Venmo: negative=you paid positive=received
+        "status_filter": "Complete",        # skip pending/failed
+        "strip_currency": True,             # amounts come as "+ $5.00" or "- $5.00"
     },
-    # Truist (SunTrust / BB&T merger)
+
+    # ── Truist (SunTrust / BB&T) ──────────────────────────────────────────────
     "truist": {
-        "match": ["Date", "Transaction Type", "Amount", "Description", "Running Balance"],
-        "date":   "Date",
-        "payee":  "Description",
-        "amount": "Amount",
-        "sign":   "inverted",
+        "match": ["Date", "Amount", "Description", "Running Balance"],
+        "match_any": [
+            ["Date", "Transaction Type", "Amount", "Description", "Running Balance"],
+            ["Date", "Amount", "Description", "Running Balance"],
+            ["Date", "Transaction Description", "Debit", "Credit", "Balance"],  # BB&T
+        ],
+        "date":        "Date",
+        "payee":       "Description",
+        "payee_fallbacks": ["Transaction Description", "Transaction Type"],
+        "amount":      "Amount",
+        "sign":        "inverted",          # Truist: negative=debit
     },
-    # KeyBank
+
+    # ── KeyBank ───────────────────────────────────────────────────────────────
+    # Date, Transaction Amount, Description
     "keybank": {
         "match": ["Date", "Transaction Amount", "Description"],
-        "date":   "Date",
-        "payee":  "Description",
-        "amount": "Transaction Amount",
-        "sign":   "inverted",
+        "date":        "Date",
+        "payee":       "Description",
+        "amount":      "Transaction Amount",
+        "amount_fallbacks": ["Amount"],
+        "sign":        "inverted",
     },
-    # Regions Bank
+
+    # ── Regions Bank ─────────────────────────────────────────────────────────
+    # Date, Transaction Type, Number, Payee, Memo, Amount, Balance
     "regions": {
-        "match": ["Date", "Transaction Type", "Number", "Payee", "Memo", "Amount", "Balance"],
-        "date":   "Date",
-        "payee":  "Payee",
-        "amount": "Amount",
-        "sign":   "inverted",
+        "match": ["Date", "Payee", "Amount", "Balance"],
+        "match_any": [
+            ["Date", "Transaction Type", "Number", "Payee", "Memo", "Amount", "Balance"],
+            ["Date", "Payee", "Amount", "Balance"],
+        ],
+        "date":        "Date",
+        "payee":       "Payee",
+        "payee_fallbacks": ["Description", "Memo"],
+        "amount":      "Amount",
+        "sign":        "inverted",
     },
-    # Huntington Bank
+
+    # ── Huntington Bank ───────────────────────────────────────────────────────
+    # Date, Transaction, Description, Deposits, Withdrawals, Balance
     "huntington": {
-        "match": ["Date", "Transaction", "Description", "Deposits", "Withdrawals", "Balance"],
-        "date":   "Date",
-        "payee":  "Description",
-        "debit":  "Withdrawals",
-        "credit": "Deposits",
-        "sign":   "normal",
+        "match": ["Date", "Description", "Deposits", "Withdrawals"],
+        "match_any": [
+            ["Date", "Transaction", "Description", "Deposits", "Withdrawals", "Balance"],
+            ["Date", "Description", "Deposits", "Withdrawals"],
+            ["Date", "Description", "Deposit", "Withdrawal", "Balance"],  # singular
+        ],
+        "date":        "Date",
+        "payee":       "Description",
+        "debit":       "Withdrawals",
+        "debit_fallbacks": ["Withdrawal"],
+        "credit":      "Deposits",
+        "credit_fallbacks": ["Deposit"],
+        "sign":        "normal",
     },
-    # M&T Bank
+
+    # ── M&T Bank ──────────────────────────────────────────────────────────────
+    # Date Posted, Transaction Amount, Description, Check Number
     "mt_bank": {
-        "match": ["Date Posted", "Transaction Amount", "Description", "Check Number"],
-        "date":   "Date Posted",
-        "payee":  "Description",
-        "amount": "Transaction Amount",
-        "sign":   "inverted",
+        "match": ["Transaction Amount", "Description"],
+        "match_any": [
+            ["Date Posted", "Transaction Amount", "Description", "Check Number"],
+            ["Date Posted", "Transaction Amount", "Description"],
+            ["Post Date", "Transaction Amount", "Description"],
+            ["Posted Date", "Transaction Amount", "Description"],
+        ],
+        "date":        "Date Posted",
+        "date_fallbacks": ["Post Date", "Posted Date", "Date"],
+        "payee":       "Description",
+        "amount":      "Transaction Amount",
+        "amount_fallbacks": ["Amount"],
+        "sign":        "inverted",
     },
-    # Citizens Bank
+
+    # ── Citizens Bank ─────────────────────────────────────────────────────────
+    # Date, Description, Debit (-), Credit (+), Balance
     "citizens_bank": {
-        "match": ["Date", "Description", "Debit (-)", "Credit (+)", "Balance"],
-        "date":   "Date",
-        "payee":  "Description",
-        "debit":  "Debit (-)",
-        "credit": "Credit (+)",
-        "sign":   "normal",
+        "match": ["Date", "Description"],
+        "match_any": [
+            ["Date", "Description", "Debit (-)", "Credit (+)", "Balance"],
+            ["Date", "Description", "Debit", "Credit", "Balance"],   # without parens
+        ],
+        "date":        "Date",
+        "payee":       "Description",
+        "debit":       "Debit (-)",
+        "debit_fallbacks": ["Debit"],
+        "credit":      "Credit (+)",
+        "credit_fallbacks": ["Credit"],
+        "sign":        "normal",
     },
-    # Fifth Third Bank
+
+    # ── Fifth Third Bank ─────────────────────────────────────────────────────
+    # Date, Transaction Description, Amount, Balance
     "fifth_third": {
-        "match": ["Date", "Transaction Description", "Amount", "Balance"],
-        "date":   "Date",
-        "payee":  "Transaction Description",
-        "amount": "Amount",
-        "sign":   "inverted",
+        "match": ["Date", "Transaction Description", "Amount"],
+        "match_any": [
+            ["Date", "Transaction Description", "Amount", "Balance"],
+            ["Date", "Transaction Description", "Amount"],
+            ["Date", "Description", "Amount", "Balance"],           # alternate
+        ],
+        "date":        "Date",
+        "payee":       "Transaction Description",
+        "payee_fallbacks": ["Description"],
+        "amount":      "Amount",
+        "sign":        "inverted",
     },
-    # SoFi Bank
+
+    # ── SoFi Bank ─────────────────────────────────────────────────────────────
+    # Transaction Date, Description, Amount, Status, Reference Number
     "sofi": {
-        "match": ["Transaction Date", "Description", "Amount", "Status", "Reference Number"],
-        "date":   "Transaction Date",
-        "payee":  "Description",
-        "amount": "Amount",
-        "sign":   "normal",
+        "match": ["Transaction Date", "Description", "Amount", "Status"],
+        "match_any": [
+            ["Transaction Date", "Description", "Amount", "Status", "Reference Number"],
+            ["Transaction Date", "Description", "Amount", "Status"],
+        ],
+        "date":        "Transaction Date",
+        "payee":       "Description",
+        "amount":      "Amount",
+        "sign":        "inverted",          # SoFi: negative=expense
     },
-    # Chime
+
+    # ── Chime ─────────────────────────────────────────────────────────────────
+    # Date, Description, Category, Amount, Balance
     "chime": {
         "match": ["Date", "Description", "Category", "Amount", "Balance"],
-        "date":   "Date",
-        "payee":  "Description",
-        "amount": "Amount",
-        "sign":   "normal",
+        "date":        "Date",
+        "payee":       "Description",
+        "amount":      "Amount",
+        "sign":        "normal",            # Chime: positive=expense negative=deposit
     },
-    # Simple bank (historical, closed 2021 but many exports still exist)
+
+    # ── Simple Bank (closed 2021) ─────────────────────────────────────────────
+    # Date, Memo, Amount, Running Balance
     "simple_bank": {
         "match": ["Date", "Memo", "Amount", "Running Balance"],
-        "date":   "Date",
-        "payee":  "Memo",
-        "amount": "Amount",
-        "sign":   "inverted",
+        "date":        "Date",
+        "payee":       "Memo",
+        "payee_fallbacks": ["Description"],
+        "amount":      "Amount",
+        "sign":        "inverted",
     },
 }
+
 
 # ── Generic column aliases (fallback when no schema matches) ──────────────────
 DATE_ALIASES = [
@@ -395,11 +634,14 @@ CREDIT_ALIASES = ["credit", "credit amount", "deposits", "deposit",
 
 # ── PDF text patterns ─────────────────────────────────────────────────────────
 PDF_PATTERNS = [
-    # Apple Card: "Jan 04, 2024   MERCHANT   $123.45   2% $X.XX"
+    # Apple Card: "Jan 04, 2024   MERCHANT   $123.45   2% $0.11"
+    # The REAL amount is the LAST dollar figure on the line (cashback % comes after).
+    # Anchor the amount match to end-of-line so we grab the final number, then
+    # strip the cashback portion from the payee.
     re.compile(
         r"^(?P<date>[A-Za-z]{3}\s+\d{1,2},?\s+\d{4})"
-        r"\s{2,}(?P<payee>.+?)\s{2,}"
-        r"\$(?P<amount>[\d,]+\.\d{2})",
+        r"\s+(?P<payee>.+?)\s+"
+        r"[-\u2212]?\$?(?P<amount>[\d,]+\.\d{2})\s*$",
         re.IGNORECASE,
     ),
     # Chase CC PDF: "01/15  MERCHANT NAME  123.45" (no year in CC PDF)
@@ -413,7 +655,7 @@ PDF_PATTERNS = [
     re.compile(
         r"^(?P<date>\d{1,2}\s+[A-Za-z]{3}\s+\d{4})"
         r"\s{2,}(?P<payee>.+?)\s{2,}"
-        r"(?P<amount>-?[\d,]+\.\d{2})",
+        r"(?P<amount>-?[\d,]+\.\d{2})\s*$",
         re.IGNORECASE,
     ),
     # Schwab / PNC / TD Bank: "01/15/2024  Description  Amount  Balance"
@@ -425,23 +667,23 @@ PDF_PATTERNS = [
         r"-?[\d,]+\.\d{2}\s*$",
         re.IGNORECASE,
     ),
-    # Schwab checking: "01/15/2024  DIRECT DEPOSIT  5,200.00  - "  (withdrawal has dash)
+    # Schwab/checking: "01/15/2024  DIRECT DEPOSIT  5,200.00" end-anchored
     re.compile(
         r"^(?P<date>\d{1,2}/\d{1,2}/\d{2,4})\s+"
         r"(?P<payee>[A-Z][A-Z0-9\s\*\#\.\-\&\'\/\,]{3,70}?)\s+"
-        r"(?P<amount>[\d,]+\.\d{2})\s*[-–]?\s*$",
+        r"(?P<amount>-?[\d,]+\.\d{2})\s*$",
         re.IGNORECASE,
     ),
-    # Generic with $ sign: any date format, payee, $amount
+    # Generic with $ sign: any date format, payee, $amount — end-anchored
     re.compile(
         r"(?P<date>"
         r"\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4}"
         r"|\d{4}[/\-]\d{2}[/\-]\d{2}"
         r"|[A-Za-z]{3,9}\.?\s*\d{1,2},?\s*\d{4}"
-        r")\s+(?P<payee>.+?)\s+\$(?P<amount>[\d,]+\.\d{2})",
+        r")\s+(?P<payee>.+?)\s+\$(?P<amount>[\d,]+\.\d{2})\s*$",
         re.IGNORECASE,
     ),
-    # Generic bare number — most permissive, last resort
+    # Generic bare number — most permissive, last resort, end-anchored
     re.compile(
         r"(?P<date>\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4}|\d{4}[/\-]\d{2}[/\-]\d{2})"
         r"\s+(?P<payee>[A-Z][A-Z0-9\s\*\#\.\-\&\'\/]{3,60})\s+"
@@ -652,22 +894,66 @@ def _llm_parse(text: str, source: str, api_key: str) -> Optional[ParseResult]:
 
 # ── CSV Parser ────────────────────────────────────────────────────────────────
 
-def _match_schema(headers: list[str]) -> Optional[dict]:
-    """Return the best matching bank schema, or None for generic."""
+def _match_schema(headers: list[str], exclude_investment: bool = True) -> Optional[dict]:
+    """
+    Match headers against all known schemas.
+    Uses match_any (list of candidate header sets) when present, else match[].
+    Returns best match or None. Prefer longer/more-specific matches.
+    """
     norm_hdrs = {_norm(h) for h in headers}
     best_schema = None
+    best_name   = None
     best_score  = 0
+    best_specificity = 0
+
     for name, schema in BANK_CSV_SCHEMAS.items():
         if schema.get("positional"):
             continue
-        required = {_norm(c) for c in schema["match"]}
-        if not required:
+        if exclude_investment and schema.get("investment_only"):
             continue
-        score = len(required & norm_hdrs)
-        if score >= len(required) * 0.75 and score > best_score:
-            best_score  = score
-            best_schema = schema
+
+        # Build list of candidate match sets to try
+        candidates = schema.get("match_any") or ([schema["match"]] if schema.get("match") else [])
+
+        for candidate in candidates:
+            if not candidate:
+                continue
+            required = {_norm(col) for col in candidate}
+            matched  = required & norm_hdrs
+            score    = len(matched)
+            threshold = max(1, int(len(required) * 0.75))
+
+            if score >= threshold and score > best_score:
+                best_score       = score
+                best_specificity = len(required)
+                best_schema      = schema
+                best_name        = name
+            elif score == best_score and len(required) > best_specificity:
+                # Prefer more specific schema when scores tie
+                best_specificity = len(required)
+                best_schema      = schema
+                best_name        = name
+
+    if best_name:
+        log.debug(f"[Schema] matched '{best_name}' (score={best_score})")
     return best_schema
+
+
+def _resolve_col(df_cols: list[str], primary: Optional[str],
+                 fallbacks: list[str] = None) -> Optional[str]:
+    """Find a column by primary name then fallbacks, using fuzzy norm matching."""
+    candidates = ([primary] if primary else []) + (fallbacks or [])
+    norm_map = {_norm(h): h for h in df_cols}
+    for col in candidates:
+        if col is None: continue
+        # Exact norm match
+        if _norm(col) in norm_map:
+            return norm_map[_norm(col)]
+        # Substring match
+        for h_norm, h_orig in norm_map.items():
+            if _norm(col) in h_norm or h_norm in _norm(col):
+                return h_orig
+    return None
 
 def _parse_csv(path: Path) -> ParseResult:
     warnings = []
@@ -689,7 +975,8 @@ def _parse_csv(path: Path) -> ParseResult:
 
     try:
         df_raw = pd.read_csv(path, skiprows=header_idx, encoding="utf-8-sig",
-                             on_bad_lines="skip", dtype=str, thousands=",")
+                             on_bad_lines="skip", dtype=str, thousands=",",
+                             keep_default_na=False, na_filter=False)
     except Exception as e:
         return ParseResult(None, 0.0, "csv-table", [str(e)], source)
 
@@ -710,80 +997,136 @@ def _parse_csv(path: Path) -> ParseResult:
     rows = []
 
     if schema and not schema.get("positional"):
-        # ── Known schema ──────────────────────────────────────────────────────
-        date_col   = schema.get("date")
-        payee_col  = schema.get("payee")
-        amount_col = schema.get("amount")
-        debit_col  = schema.get("debit")
-        credit_col = schema.get("credit")
-        sign       = schema.get("sign", "normal")
+        # ── Known schema — resolve columns with full fallback chains ───────────
+        sign = schema.get("sign", "normal")
 
-        # Resolve actual column (handle slight name variations)
-        def resolve(col):
-            if col is None: return None
-            if col in df_raw.columns: return col
-            return _find_col(headers, [_norm(col)])
+        date_col   = _resolve_col(headers, schema.get("date"),   schema.get("date_fallbacks", []))
+        payee_col  = _resolve_col(headers, schema.get("payee"),  schema.get("payee_fallbacks", []))
+        amount_col = _resolve_col(headers, schema.get("amount"), schema.get("amount_fallbacks", []))
+        debit_col  = _resolve_col(headers, schema.get("debit"),  schema.get("debit_fallbacks", []))
+        credit_col = _resolve_col(headers, schema.get("credit"), schema.get("credit_fallbacks", []))
 
-        date_col   = resolve(date_col)
-        payee_col  = resolve(payee_col)
-        amount_col = resolve(amount_col)
-        debit_col  = resolve(debit_col)
-        credit_col = resolve(credit_col)
+        # Last-resort payee: any description-like column
+        if not payee_col:
+            payee_col = _find_col(headers, ["description", "memo", "name",
+                                            "narrative", "details"])
 
-        if not date_col or not payee_col:
-            schema = None  # fall through to generic
-        else:
-            # Check for Mint-style "Transaction Type" column (debit/credit label)
-            type_col = schema.get("type_col")
-            type_col = _find_col(headers, [_norm(type_col)]) if type_col else None
+        if not date_col:
+            schema = None  # cannot parse without a date
+
+        if schema and date_col:
+            # Apply account_filter (Fidelity: CHECKING only)
+            account_filter = schema.get("account_filter")
+            if account_filter:
+                acct_col = _find_col(headers, ["account"])
+                if acct_col:
+                    before = len(df_raw)
+                    df_raw = df_raw[
+                        df_raw[acct_col].astype(str).str.strip().str.upper()
+                        == account_filter.upper()
+                    ]
+                    log.info(f"[CSV] account_filter={account_filter}: {before}→{len(df_raw)} rows")
+
+            # Mint: Transaction Type column drives sign
+            type_col_name = schema.get("type_col")
+            type_col = _resolve_col(headers, type_col_name, []) if type_col_name else None
+
+            # PayPal / Venmo: status/currency filters + string amount format
+            status_filter   = schema.get("status_filter")
+            currency_filter = schema.get("currency_filter")
+            strip_currency  = schema.get("strip_currency", False)
+            status_col   = _find_col(headers, ["status"])   if status_filter   else None
+            currency_col = _find_col(headers, ["currency"]) if currency_filter else None
 
             for _, row in df_raw.iterrows():
+                # Status filter (PayPal: Completed only, Venmo: Complete only)
+                if status_col and status_filter:
+                    sv = str(row.get(status_col, "")).strip().lower()
+                    if status_filter.lower() not in sv:
+                        continue
+
+                # Currency filter (PayPal: USD only)
+                if currency_col and currency_filter:
+                    cv = str(row.get(currency_col, "")).strip().upper()
+                    if cv != currency_filter.upper():
+                        continue
+
                 date = _parse_date(str(row.get(date_col, "")), statement_year)
                 if not date: continue
-                payee = str(row.get(payee_col, "")).strip()
-                if not payee or payee.lower() in ("nan", "", "none"): continue
+
+                # Payee: walk all fallback columns until non-empty
+                payee = ""
+                all_payee_cols = []
+                if payee_col: all_payee_cols.append(payee_col)
+                for fb in schema.get("payee_fallbacks", []):
+                    c_resolved = _resolve_col(headers, fb, [])
+                    if c_resolved and c_resolved not in all_payee_cols:
+                        all_payee_cols.append(c_resolved)
+                for col in all_payee_cols:
+                    v = str(row.get(col, "")).strip()
+                    if v and v.lower() not in ("nan", "", "none", "no description", "n/a"):
+                        payee = v
+                        break
+                if not payee: continue
+
+                # Amount: Venmo/PayPal use "- $5.00" strings; others numeric
                 amount = None
-                if amount_col and pd.notna(row.get(amount_col)):
-                    a = _parse_amount(row[amount_col])
+                raw_amt = str(row.get(amount_col, "")).strip() if amount_col else ""
+
+                if strip_currency and raw_amt:
+                    is_neg = raw_amt.startswith("-") or raw_amt.startswith("\u2212")
+                    cleaned = re.sub(r"[+\u2212$,\s]", "", raw_amt).lstrip("-")
+                    try:
+                        amount = _apply_sign(-float(cleaned) if is_neg else float(cleaned), sign)
+                    except ValueError:
+                        pass
+                elif raw_amt and raw_amt not in ("nan", ""):
+                    a = _parse_amount(raw_amt)
                     if a is not None:
-                        # Mint: use Transaction Type to determine sign
                         if type_col:
-                            tx_type = str(row.get(type_col, "")).lower()
+                            tx_type = str(row.get(type_col, "")).strip().lower()
                             if "debit" in tx_type:
-                                amount = abs(a)   # expense
+                                amount = abs(a)
                             elif "credit" in tx_type:
-                                amount = -abs(a)  # income/refund
+                                amount = -abs(a)
                             else:
                                 amount = _apply_sign(a, sign)
                         else:
                             amount = _apply_sign(a, sign)
-                elif debit_col or credit_col:
-                    d = _parse_amount(row.get(debit_col, "") or "") or 0.0
-                    c = _parse_amount(row.get(credit_col, "") or "") or 0.0
-                    if d or c:
-                        amount = d - c  # debit positive, credit negative
+
+                # Split debit/credit columns
+                if amount is None and (debit_col or credit_col):
+                    d = _parse_amount(str(row.get(debit_col,  "") or "")) or 0.0
+                    k = _parse_amount(str(row.get(credit_col, "") or "")) or 0.0
+                    if d or k:
+                        amount = d - k  # debit=positive(expense), credit=negative(income)
+
                 if amount is None: continue
                 rows.append({"Date": date, "Payee": _clean_payee(payee), "Amount": amount})
             confidence = CONF_HIGH
 
     if schema and schema.get("positional"):
-        # ── Wells Fargo positional (no headers) ───────────────────────────────
+        # ── Wells Fargo positional (no headers) — use positional_map ──────────
+        positional_map = schema.get("positional_map", {})
         for _, row in df_raw.iterrows():
             vals = [str(v).strip() for v in row.values]
             if len(vals) < 3: continue
-            date = _parse_date(vals[0])
-            if not date: continue
-            payee  = _clean_payee(vals[1])
-            amount = None
-            # Try col2 first (single amount), then col3/col4 (debit/credit)
-            if len(vals) > 4:
-                d = _parse_amount(vals[3]) or 0.0
-                c = _parse_amount(vals[2]) or 0.0
-                if d or c:
-                    amount = d - c
-            if amount is None:
-                amount = _parse_amount(vals[2])
-            if amount is None: continue
+            n = len(vals)
+            mapping = positional_map.get(n) or positional_map.get(max(positional_map.keys(), default=5))
+            if mapping:
+                d_idx = mapping.get("date",   0)
+                p_idx = mapping.get("payee",  3)
+                a_idx = mapping.get("amount", 1)
+                date   = _parse_date(vals[d_idx])
+                payee  = _clean_payee(vals[p_idx])
+                amount = _parse_amount(vals[a_idx])
+            else:
+                # Fallback heuristic
+                date   = _parse_date(vals[0])
+                amount = _parse_amount(vals[1])
+                payee  = _clean_payee(vals[min(3, n-1)])
+            if not date or amount is None: continue
+            amount = _apply_sign(amount, schema.get("sign", "inverted"))
             rows.append({"Date": date, "Payee": payee, "Amount": amount})
         confidence = CONF_MEDIUM
 
