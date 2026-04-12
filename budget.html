@@ -539,6 +539,22 @@ select:focus,input:focus{border-color:var(--acc2)}
         <div id="parse-confidence-list"></div>
       </div>
 
+      <!-- Groq API key -->
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--bdr)">
+        <div class="ssub" style="margin-top:0">AI Parser (Optional but recommended)</div>
+        <div style="font-size:11px;color:var(--mut);margin-bottom:8px;line-height:1.5">
+          Add a free <a href="https://console.groq.com" target="_blank" style="color:var(--acc2)">Groq API key</a>
+          to enable LLM-powered parsing — reads any bank format with near-perfect accuracy.
+          Without it, a rule-based parser is used which works for most formats.
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="password" id="groq-api-key" placeholder="gsk_..." style="width:220px;font-family:var(--font-mono);font-size:11px">
+          <button class="btn btn-acc btn-sm" onclick="saveGroqKey()">Save Key</button>
+          <span id="groq-key-status" style="font-size:11px;color:var(--mut)"></span>
+        </div>
+        <div id="groq-key-indicator" style="font-size:10px;color:var(--mut);margin-top:4px"></div>
+      </div>
+
     </div>
   </div><!-- end setup guide -->
 
@@ -815,6 +831,18 @@ async function loadData(){
   }
 }
 
+async function autoParseIfEmpty(){
+  // On first launch, if no transactions exist yet, auto-run the parser
+  try{
+    const r=await fetch(`${API}/data`);
+    const d=await r.json();
+    if((d.tx_count||0)===0){
+      addLog("No transactions found — auto-running parser on first launch...","info");
+      await runParser();
+    }
+  }catch(e){}
+}
+
 async function loadPlan(){
   try{
     const r=await fetch(`${API}/plan`);const d=await r.json();
@@ -934,8 +962,8 @@ function renderDash(){
     <div class="inc-field"><span class="lbl">401k match (${fmtP(inc.company_401k_pct||.04)})</span><span class="val grn">+${fmt(inc.retirement_company)}/yr</span></div>
     <div class="inc-field"><span class="lbl">Rent income</span><span class="val grn">+${fmt(inc.rent_monthly||0)}/mo</span></div>
     <div class="inc-field"><span class="lbl">Dividends</span><span class="val grn">+${fmt(inc.dividends_monthly||0)}/mo</span></div>
-    <div class="inc-field" style="border-top:1px solid var(--bdr);padding-top:6px;margin-top:4px"><span class="lbl" style="font-weight:600;color:var(--txt)">${p1} Net (monthly)</span><span class="val grn" style="font-size:14px">${fmt(inc.net_monthly||6200)}/mo</span></div>
-    <div class="inc-field"><span class="lbl" style="font-weight:600;color:var(--txt)">${p2} Net (monthly)</span><span class="val pur">${fmt(inc.casie_net_monthly||4750)}/mo</span></div>
+    <div class="inc-field" style="border-top:1px solid var(--bdr);padding-top:6px;margin-top:4px"><span class="lbl" style="font-weight:600;color:var(--txt)" id="dash-p1-name">${p1} Net (monthly)</span><span class="val grn" style="font-size:14px">${fmt(inc.net_monthly||6200)}/mo</span></div>
+    <div class="inc-field"><span class="lbl" style="font-weight:600;color:var(--txt)" id="dash-p2-name">${p2} Net (monthly)</span><span class="val pur">${fmt(inc.casie_net_monthly||4750)}/mo</span></div>
     <div class="inc-field" style="background:var(--bg3);border-radius:6px;padding:6px 8px;margin-top:4px"><span class="lbl" style="font-weight:600;color:var(--txt)">Combined Monthly</span><span class="val acc" style="font-size:14px">${fmt(inc.combined_net_monthly||10950)}/mo</span></div>`;
   }
   const ytd=MONTHLY.filter(m=>m.key.startsWith(String(new Date().getFullYear())));
@@ -1659,6 +1687,9 @@ function applyNames(){
   if(g("pcsr-lbl"))g("pcsr-lbl").textContent=`${p2} Savings Rate %`;
   if(g("p1-sav-rate-lbl"))g("p1-sav-rate-lbl").textContent=`${p1} Savings Return %/yr`;
   if(g("p2-sav-rate-lbl"))g("p2-sav-rate-lbl").textContent=`${p2} Savings Return %/yr`;
+  // Update dashboard income breakdown rows directly (they use innerHTML so aren't updated by set())
+  const n1=g("dash-p1-name"); if(n1) n1.textContent=`${p1} Net (monthly)`;
+  const n2=g("dash-p2-name"); if(n2) n2.textContent=`${p2} Net (monthly)`;
   // Re-render plan tables if loaded so row labels update
   if(PROJ.length) renderPlanTables();
 }
@@ -1725,6 +1756,38 @@ async function removeCustomCat(idx){
     await fetch(`${API}/settings`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({custom_cats:CUSTOM_CATS})});
     toast(`Category "${name}" removed.`);
   }catch(e){toast("Removed locally — server offline.");}
+}
+
+// ── GROQ API KEY ──
+async function saveGroqKey(){
+  const key = g("groq-api-key").value.trim();
+  const st  = g("groq-key-status");
+  const ind = g("groq-key-indicator");
+  try{
+    const r = await fetch(`${API}/groq-key`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({key})});
+    const d = await r.json();
+    if(d.ok){
+      st.textContent = key ? "✓ Saved" : "Cleared";
+      st.style.color = "var(--grn)";
+      ind.textContent = key ? "AI parsing enabled — Groq Llama will be used for all statements" : "Rule-based parsing active";
+      ind.style.color = key ? "var(--acc2)" : "var(--mut)";
+      setTimeout(()=>{ st.textContent=""; },3000);
+    }
+  }catch(e){ st.textContent="Error saving"; st.style.color="var(--red)"; }
+}
+
+async function loadGroqKeyStatus(){
+  try{
+    const d = await (await fetch(`${API}/groq-key`)).json();
+    const key = d.key || "";
+    const ind = g("groq-key-indicator");
+    const inp = g("groq-api-key");
+    if(key && inp) inp.placeholder = "gsk_••••••••••••••••";
+    if(ind){
+      ind.textContent = key ? "AI parsing enabled — Groq Llama will be used for all statements" : "No key set — rule-based parsing active";
+      ind.style.color = key ? "var(--acc2)" : "var(--mut)";
+    }
+  }catch(e){}
 }
 
 // ── YEAR INCOME OVERRIDES ──
@@ -1824,6 +1887,7 @@ function renderSettingsPage(){
   renderCustomCatList();
   loadPlanSettings();
   renderYearIncomes();
+  loadGroqKeyStatus();
 }
 
 function previewIncome(){
@@ -1960,6 +2024,7 @@ window.addEventListener("DOMContentLoaded",async()=>{
   await loadPlan();
   initBudgetFilters();
   initDualScroll();
+  autoParseIfEmpty();
 });
 </script>
 </body>
