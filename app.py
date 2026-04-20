@@ -7,6 +7,9 @@ from flask_cors import CORS
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger(__name__)
+# Suppress werkzeug's per-request access log — it spams the activity log with
+# "GET /api/ping 200" and "404" lines that are noise for end users.
+logging.getLogger("werkzeug").setLevel(logging.ERROR)
 app = Flask(__name__)
 CORS(app)
 
@@ -470,6 +473,21 @@ def compute_projection(plan):
     condo_principle_paid = float(plan.get("condo_principle", 0))
     _condo_monthly_principal = float(plan.get("condo_monthly_principal", 850))
 
+    # Refine monthly principal from mortgage rate FIRST, using the as-entered
+    # (today's) principal — before we back-calculate anything. This ensures the
+    # same _condo_monthly_principal value is used in both the back-calc and the loop.
+    _condo_mort_rate = float(plan.get("condo_mortgage_rate", 0.0))
+    if _condo_mort_rate > 0 and condo_purchase_price > 0:
+        _orig_loan    = max(condo_purchase_price * 0.8, condo_purchase_price - 50000)
+        _remaining    = max(_orig_loan - condo_principle_paid, 0)
+        _mr_mo        = _condo_mort_rate / 12
+        if _mr_mo > 0 and _remaining > 0:
+            _total_pmt       = (_remaining * _mr_mo * (1+_mr_mo)**360) / ((1+_mr_mo)**360 - 1)
+            _interest_mo     = _remaining * _mr_mo
+            _derived_principal = max(_total_pmt - _interest_mo, 0)
+            if _derived_principal > 0:
+                _condo_monthly_principal = _derived_principal
+
     # Anchor condo_val AND condo_principle_paid to value_date, not start_month.
     # The loop pre-increments (condo_val *= rate, principal += monthly) BEFORE
     # appending each row. So the row labelled start_month already reflects one
@@ -490,18 +508,6 @@ def compute_projection(plan):
             )
         except Exception:
             pass
-    # If current home mortgage rate is provided, refine monthly principal estimate
-    _condo_mort_rate = float(plan.get("condo_mortgage_rate", 0.0))
-    if _condo_mort_rate > 0 and condo_purchase_price > 0:
-        _orig_loan    = max(condo_purchase_price * 0.8, condo_purchase_price - 50000)
-        _remaining    = max(_orig_loan - condo_principle_paid, 0)
-        _mr_mo        = _condo_mort_rate / 12
-        if _mr_mo > 0 and _remaining > 0:
-            _total_pmt       = (_remaining * _mr_mo * (1+_mr_mo)**360) / ((1+_mr_mo)**360 - 1)
-            _interest_mo     = _remaining * _mr_mo
-            _derived_principal = max(_total_pmt - _interest_mo, 0)
-            if _derived_principal > 0:
-                _condo_monthly_principal = _derived_principal
     plan_type  = plan.get("plan_type", "sell_buy")
     use_property = (plan_type == "sell_buy")
     inc        = derived_income(SETTINGS)
