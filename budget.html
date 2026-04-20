@@ -259,8 +259,8 @@ select:focus,input:focus{border-color:var(--acc2)}
   </div>
   <div class="notice">Monthly limits. Full Year = limit × months selected. Edit any limit inline → Save Limits to persist. <strong>Actual</strong> = real spend from your parsed statements. Progress bar turns yellow at 80%, red when over.</div>
   <div class="g4" id="budget-kpi" style="margin-top:10px;margin-bottom:14px"></div>
-  <div class="g2r" style="align-items:stretch">
-    <div class="card" style="display:flex;flex-direction:column"><div class="stt">Actual vs Limit</div><div id="limit-rows" style="flex:1"></div></div>
+  <div class="g2r" style="align-items:start">
+    <div class="card"><div class="stt">Actual vs Limit</div><div id="limit-rows"></div></div>
     <div class="card">
       <div class="stt">Category Trend (12 months)</div>
       <div style="display:flex;gap:8px;margin-bottom:8px"><select id="cat-sel" onchange="drawTrend()"></select></div>
@@ -813,6 +813,7 @@ let MONTHLY=[], PORTFOLIO=[], LIMITS={}, INCOME={}, PLAN={}, PROJ=[], CHS={}, SN
 let LIVE_PRICES={}, CURRENT_TX=[], CURRENT_MONTH_KEY=null;
 let NAMES={p1:"Person 1",p2:"Person 2"};
 let CUSTOM_CATS=[];
+let DASH_YEAR="all"; // dashboard year filter — independent of monthly CHS
 
 const CC={Mortgage:"#5b8dee",HOA:"#7c6ee0",Grocery:"#4caf7d",Restaurant:"#e8c46a",Electric:"#e07c5c",Insurance:"#e05c5c","Car Payment":"#c85ce0","Car Services":"#a0c878",Internet:"#5cb8e0","Natural Gas":"#f0a050",Amazon:"#ff9900",Uber:"#2dbfad",Gym:"#b07cf0",MBTA:"#60b0d0",Subscription:"#d090e0",Veterinary:"#90d090","Dentist Office":"#f08080","All-Other":"#8a93a8"};
 function cc(c){return CC[c]||"#8a93a8"}
@@ -860,10 +861,10 @@ async function loadData(){
     rebuildAllCats(); // always run — ensures custom cats are in LIMITS and CC
     const _monthlyFirstLoad=Object.keys(CHS).length===0 && MONTHLY.length>0;
     MONTHLY.forEach(m=>{if(!(m.key in CHS))CHS[m.key]=true});
-    // On first load, default to last 12 months rolling
+    // On first load, default to last 18 months rolling
     if(_monthlyFirstLoad){
-      const last12Keys=new Set(MONTHLY.slice(-12).map(m=>m.key));
-      MONTHLY.forEach(m=>{ CHS[m.key]=last12Keys.has(m.key); });
+      const last18Keys=new Set(MONTHLY.slice(-18).map(m=>m.key));
+      MONTHLY.forEach(m=>{ CHS[m.key]=last18Keys.has(m.key); });
     }
     g("hdr-sub").textContent=`Financial Planner · ${(d.tx_count||0).toLocaleString()} transactions · ${MONTHLY.length} months`;
     if(d.last_updated){g("last-badge").innerHTML=`<span class="dot grn"></span> Updated ${d.last_updated}`;g("last-badge").className="badge grn"}
@@ -935,10 +936,11 @@ function showPg(id,btn){
 function setYear(y,btn){
   document.querySelectorAll(".mchip.yr").forEach(b=>b.classList.remove("active"));
   btn.classList.add("active");
-  MONTHLY.forEach(m=>{CHS[m.key]=y==="all"||m.key.startsWith(String(y))});
-  renderAll();if(g("m-chips")?.children.length)renderMonthChips();
+  DASH_YEAR=y;
+  renderDash();
 }
 
+function dashFiltered(){return MONTHLY.filter(m=>DASH_YEAR==="all"||m.key.startsWith(String(DASH_YEAR)))}
 function filtered(){return MONTHLY.filter(m=>CHS[m.key])}
 function renderAll(){renderDash();renderMonthly()}
 
@@ -968,7 +970,7 @@ function _needsIncome(){ return !INCOME.salary; }
 
 // ── DASHBOARD ──
 function renderDash(){
-  const d=filtered();
+  const d=dashFiltered();
   if(!d.length){
     _emptyBanner("kpi-cards","📂",
       "No transaction data yet",
