@@ -469,6 +469,27 @@ def compute_projection(plan):
     condo_purchase_price = float(plan.get("condo_purchase_price", 0))
     condo_principle_paid = float(plan.get("condo_principle", 0))
     _condo_monthly_principal = float(plan.get("condo_monthly_principal", 850))
+
+    # ── Anchor condo_val to value_date, not start_month ──────────────────────
+    # condo_value is the assessed value as of condo_value_date.
+    # We need to back-project (or forward-project) to find the value at
+    # start_month so the projection loop is correct from the first row.
+    #
+    #   value_at_start = condo_value / (1 + rate)^(months_from_start_to_value_date)
+    #
+    # months_offset > 0  → value_date is AFTER start_month  → divide out growth
+    # months_offset < 0  → value_date is BEFORE start_month → multiply in growth
+    _value_date_str = plan.get("condo_value_date", "")
+    if _value_date_str and condo_rate > 0 and condo_val > 0:
+        try:
+            _vd = datetime.strptime(_value_date_str[:7], "%Y-%m")
+            _sd = datetime.strptime(start, "%Y-%m")
+            _months_offset = (_vd.year - _sd.year) * 12 + (_vd.month - _sd.month)
+            # Reverse-compound: what was the value at start_month?
+            if _months_offset != 0:
+                condo_val = condo_val / ((1 + condo_rate) ** _months_offset)
+        except Exception:
+            pass  # If parsing fails, use condo_value as-is (old behaviour)
     # If current home mortgage rate is provided, refine monthly principal estimate
     _condo_mort_rate = float(plan.get("condo_mortgage_rate", 0.0))
     if _condo_mort_rate > 0 and condo_purchase_price > 0:
