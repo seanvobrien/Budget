@@ -117,6 +117,8 @@ def _default_plan():
         "months":                  {},
         "liq_dp_pct":              80,
         "liq_res_pct":             20,
+        "condo_purchase_date":     "",
+        "condo_value_date":        "",
     }
 
 DEFAULT_PLAN = _default_plan()
@@ -362,6 +364,40 @@ def load_investments():
             except: pass
     return rows, snap
 
+def _is_month_complete(key: str, txns: list) -> bool:
+    """
+    Returns True if the month is complete enough to display.
+    A month is considered complete if:
+      - It is not the current calendar month, OR
+      - It IS the current month AND we have credit statement data
+        that covers at least through the 20th of the month
+        (i.e. the latest credit transaction date is >= the 20th).
+    This prevents a partial current month from skewing the dashboard.
+    """
+    today = datetime.today()
+    current_key = today.strftime("%Y-%m")
+    if key != current_key:
+        return True  # Past months always shown
+    # For the current month: check if the latest credit transaction
+    # date reaches far enough into the month to be representative.
+    # We require at least one credit/debit transaction dated on or after the 20th.
+    month_txns = [t for t in txns if t["key"] == key and not t["excluded"]]
+    if not month_txns:
+        return False
+    # Find the latest transaction date in this month
+    dates = []
+    for t in month_txns:
+        try:
+            dates.append(datetime.strptime(t["date"], "%Y-%m-%d"))
+        except Exception:
+            pass
+    if not dates:
+        return False
+    latest_day = max(d.day for d in dates)
+    # Only show current month if statements cover at least through the 20th
+    return latest_day >= 20
+
+
 def aggregate_monthly(txns):
     from collections import defaultdict
     from calendar import month_abbr as ma
@@ -376,6 +412,7 @@ def aggregate_monthly(txns):
     result = []
     for k in sorted(mo.keys()):
         if k == "2023-12": continue
+        if not _is_month_complete(k, txns): continue  # Skip incomplete current month
         yr, m = k.split("-")
         d = mo[k]; exp = sum(d["categories"].values())
         result.append({
@@ -607,6 +644,51 @@ def groq_key():
         return jsonify({"ok": True})
     return jsonify({"key": SETTINGS.get("groq_api_key", "")})
 
+@app.route("/api/plan/calc-appreciation", methods=["POST"])
+def calc_appreciation():
+    """
+    Given purchase_price, purchase_date, current_value, value_date,
+    compute the implied monthly appreciation rate and return it.
+    Also saves condo_purchase_date and condo_value_date to the plan.
+    """
+    data = request.get_json() or {}
+    try:
+        purchase_price  = float(data.get("purchase_price", 0))
+        current_value   = float(data.get("current_value", 0))
+        purchase_date   = data.get("purchase_date", "")   # YYYY-MM-DD or YYYY-MM
+        value_date      = data.get("value_date", "")      # YYYY-MM-DD or YYYY-MM
+        if not purchase_price or not current_value or not purchase_date or not value_date:
+            return jsonify({"error": "Missing required fields"}), 400
+        # Parse dates — accept YYYY-MM or YYYY-MM-DD
+        def _parse_dt(s):
+            for fmt in ("%Y-%m-%d", "%Y-%m"):
+                try: return datetime.strptime(s[:10 if fmt=="%Y-%m-%d" else 7], fmt)
+                except ValueError: pass
+            raise ValueError(f"Cannot parse date: {s}")
+        dt_purchase = _parse_dt(purchase_date)
+        dt_value    = _parse_dt(value_date)
+        months = (dt_value.year - dt_purchase.year) * 12 + (dt_value.month - dt_purchase.month)
+        if months <= 0:
+            return jsonify({"error": "Value date must be after purchase date"}), 400
+        # (1 + r)^months = current_value / purchase_price
+        ratio = current_value / purchase_price
+        monthly_rate = ratio ** (1.0 / months) - 1.0
+        # Save dates to plan
+        with state_lock:
+            PLAN["condo_purchase_date"] = purchase_date
+            PLAN["condo_value_date"]    = value_date
+            PLAN["condo_rate"]          = round(monthly_rate, 6)
+        save_json(PLAN_FILE, PLAN)
+        return jsonify({
+            "ok": True,
+            "monthly_rate": round(monthly_rate, 6),
+            "monthly_rate_pct": round(monthly_rate * 100, 4),
+            "months": months,
+            "implied_annual_pct": round(((1 + monthly_rate) ** 12 - 1) * 100, 2),
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
 @app.route("/api/shutdown", methods=["POST"])
 def shutdown():
     add_log("Server shutting down...", "info")
@@ -747,7 +829,8 @@ def update_plan():
                   "mortgage_rate","mortgage_term","sean_start_bal","casie_start_bal",
                   "start_month","sean_default_monthly","casie_default_monthly",
                   "sean_default_income","casie_default_income",
-                  "condo_value","condo_rate","condo_mortgage_rate","condo_principle","condo_purchase_price","condo_monthly_principal"]:
+                  "condo_value","condo_rate","condo_mortgage_rate","condo_principle","condo_purchase_price","condo_monthly_principal",
+                  "condo_purchase_date","condo_value_date"]:
             if k in data: PLAN[k] = data[k]
         if "months"           in data: PLAN["months"].update(data["months"])
         if "year_incomes"     in data: PLAN["year_incomes"]     = data["year_incomes"]

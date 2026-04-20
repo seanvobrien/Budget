@@ -508,30 +508,42 @@ select:focus,input:focus{border-color:var(--acc2)}
       </div>
 
       <div class="ssub">Statement Folders</div>
-      <div style="font-size:11px;color:var(--mut);margin-bottom:10px;line-height:1.5">All folders inside <span style="font-family:var(--font-mono);background:var(--bg3);padding:1px 5px;border-radius:3px;font-size:10px">BudgetApp/Statements/</span>. Parser auto-detects formats — no renaming needed.</div>
+      <div style="font-size:11px;color:var(--mut);margin-bottom:10px;line-height:1.5">All folders live inside <span style="font-family:var(--font-mono);background:var(--bg3);padding:1px 5px;border-radius:3px;font-size:10px">BudgetApp/Statements/</span>. Parser auto-detects formats — no renaming needed.</div>
 
       <div class="folder-item">
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
           <span>💳</span><span style="font-family:var(--font-mono);font-size:10px;font-weight:700;color:var(--acc2)">Credit /</span><span class="badge bl" style="font-size:9px">statements_parser</span>
+          <span style="font-size:10px;color:var(--mut);font-family:var(--font-mono);margin-left:auto">Accepts: .pdf &nbsp;.csv</span>
         </div>
-        <div style="font-size:11px;color:var(--mut);line-height:1.5">Any credit card — Apple, Chase, Citi, Amex, etc. <strong style="color:var(--txt)">Export:</strong> Bank → Account Activity → Download CSV or PDF. Apple: Wallet → card → export icon.</div>
-        <div style="font-size:10px;color:var(--mut);margin-top:4px;font-family:var(--font-mono)">Accepts: .pdf &nbsp;.csv</div>
+        <div style="font-size:11px;color:var(--mut);line-height:1.6">
+          Any credit card — Apple, Chase, Citi, Amex, etc.<br>
+          <span style="color:var(--txt);font-weight:600">Apple Card:</span> Wallet app → tap card → <span style="font-family:var(--font-mono);font-size:10px;background:var(--bg3);padding:1px 4px;border-radius:2px">↑ Export</span> icon (top-right) → CSV<br>
+          <span style="color:var(--txt);font-weight:600">Chase / Citi / Amex:</span> Log in → Account Activity → <span style="font-family:var(--font-mono);font-size:10px;background:var(--bg3);padding:1px 4px;border-radius:2px">Download</span> → CSV or PDF
+        </div>
       </div>
 
       <div class="folder-item">
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
           <span>🏦</span><span style="font-family:var(--font-mono);font-size:10px;font-weight:700;color:var(--acc2)">Debit /</span><span class="badge bl" style="font-size:9px">statements_parser</span>
+          <span style="font-size:10px;color:var(--mut);font-family:var(--font-mono);margin-left:auto">Accepts: .csv &nbsp;.pdf</span>
         </div>
-        <div style="font-size:11px;color:var(--mut);line-height:1.5">Any checking/debit account — Fidelity, Chase, BofA, etc. <strong style="color:var(--txt)">Fidelity:</strong> Accounts → Activity → Download CSV. <span style="color:var(--acc);font-size:10px">CSV preferred over PDF.</span></div>
-        <div style="font-size:10px;color:var(--mut);margin-top:4px;font-family:var(--font-mono)">Accepts: .csv &nbsp;.pdf</div>
+        <div style="font-size:11px;color:var(--mut);line-height:1.6">
+          Any checking or debit account — Fidelity, Chase, BofA, etc.<br>
+          <span style="color:var(--txt);font-weight:600">Fidelity:</span> fidelity.com → Accounts &amp; Trade → <em>your account</em> → Activity &amp; Orders → <span style="font-family:var(--font-mono);font-size:10px;background:var(--bg3);padding:1px 4px;border-radius:2px">Download</span> → CSV<br>
+          <span style="color:var(--acc);font-size:10px;font-weight:600">⚑ CSV preferred over PDF for Fidelity checking</span>
+        </div>
       </div>
 
       <div class="folder-item">
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
           <span>📈</span><span style="font-family:var(--font-mono);font-size:10px;font-weight:700;color:var(--acc2)">Investments /</span><span class="badge pur" style="font-size:9px">investments_parser</span>
+          <span style="font-size:10px;color:var(--mut);font-family:var(--font-mono);margin-left:auto">Accepts: Portfolio_Positions_*.csv</span>
         </div>
-        <div style="font-size:11px;color:var(--mut);line-height:1.5">Fidelity positions snapshot. <strong style="color:var(--txt)">Export:</strong> fidelity.com → Portfolio → Positions → Download CSV. Keep the default filename — the date is used for snapshot tracking.</div>
-        <div style="font-size:10px;color:var(--mut);margin-top:4px;font-family:var(--font-mono)">Accepts: Portfolio_Positions_*.csv</div>
+        <div style="font-size:11px;color:var(--mut);line-height:1.6">
+          Fidelity portfolio positions snapshot.<br>
+          <span style="color:var(--txt);font-weight:600">Fidelity:</span> fidelity.com → Accounts &amp; Trade → Portfolio → Positions → <span style="font-family:var(--font-mono);font-size:10px;background:var(--bg3);padding:1px 4px;border-radius:2px">Download CSV</span><br>
+          <span style="color:var(--acc2);font-size:10px">Keep the default filename</span> <span style="font-size:10px;color:var(--mut)">— the date embedded in it tracks snapshot age.</span>
+        </div>
       </div>
 
       <div id="parse-confidence-card" style="margin-top:10px;display:none">
@@ -605,7 +617,7 @@ select:focus,input:focus{border-color:var(--acc2)}
 <div class="sg3" style="align-items:start">
 
   <!-- PLAN CONFIGURATION -->
-  <div class="scard" style="height:580px">
+  <div class="scard" style="height:720px">
     <div class="scard-hdr">
       <span class="stt">Plan Configuration</span>
       <span id="plan-type-badge"></span>
@@ -674,10 +686,35 @@ select:focus,input:focus{border-color:var(--acc2)}
           <span class="sf-lbl">Monthly Principal Pmt</span>
           <input type="number" id="plan-condo-monthly-principal" step="50" style="width:110px" onchange="savePlanSettings()">
         </div>
-        <div class="sf">
-          <span class="sf-lbl">Appreciation Rate %/mo</span>
-          <div style="display:flex;align-items:center;gap:4px"><input type="number" id="plan-condo-rate" step="0.05" style="width:70px" onchange="savePlanSettings()"><span style="font-size:11px;color:var(--mut)">%</span></div>
+
+        <!-- Appreciation Rate — auto-calc from dates + values -->
+        <div style="background:var(--bg3);border:1px solid var(--bdr2);border-radius:5px;padding:10px 12px;margin:6px 0">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+            <span style="font-size:10px;font-weight:700;color:var(--txt);text-transform:uppercase;letter-spacing:.5px;font-family:var(--font-mono)">Appreciation Rate</span>
+            <span id="appr-rate-display" style="font-size:10px;color:var(--acc2);font-family:var(--font-mono);margin-left:auto"></span>
+          </div>
+          <div class="sf" style="margin-bottom:6px">
+            <span class="sf-lbl" style="font-size:10px">Purchase Date</span>
+            <input type="month" id="plan-purchase-date" style="width:130px" onchange="onApprDateChange()">
+          </div>
+          <div class="sf" style="margin-bottom:6px">
+            <span class="sf-lbl" style="font-size:10px">Value As-Of Date</span>
+            <input type="month" id="plan-value-date" style="width:130px" onchange="onApprDateChange()">
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:4px">
+            <button class="btn btn-sm" style="font-size:10px" onclick="calcAppreciationRate()">⟳ Recalculate</button>
+            <span id="appr-calc-status" style="font-size:10px;color:var(--mut)"></span>
+          </div>
+          <div style="font-size:10px;color:var(--mut);margin-top:6px;line-height:1.4">
+            Rate is computed from purchase price, current value, and the dates above. Update the value and click Recalculate to refresh.
+          </div>
+          <!-- Manual override still available -->
+          <div class="sf" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--bdr)">
+            <span class="sf-lbl" style="font-size:10px;color:var(--mut)">Override %/mo</span>
+            <div style="display:flex;align-items:center;gap:4px"><input type="number" id="plan-condo-rate" step="0.01" style="width:70px" onchange="savePlanSettings()"><span style="font-size:11px;color:var(--mut)">%</span></div>
+          </div>
         </div>
+
         <div class="sf">
           <span class="sf-lbl">Current Mortgage Rate</span>
           <div style="display:flex;align-items:center;gap:4px"><input type="number" id="plan-condo-mortgage-rate" step="0.125" style="width:70px" onchange="savePlanSettings()"><span style="font-size:11px;color:var(--mut)">%</span></div>
@@ -1627,9 +1664,75 @@ function loadPlanSettings(){
   set("plan-condo-monthly-principal", PLAN.condo_monthly_principal);
   set("plan-condo-rate",  ((PLAN.condo_rate||0.003)*100).toFixed(2));
   set("plan-condo-mortgage-rate", ((PLAN.condo_mortgage_rate||0.03)*100).toFixed(3));
+  // Appreciation dates
+  if(PLAN.condo_purchase_date) set("plan-purchase-date", PLAN.condo_purchase_date.substring(0,7));
+  if(PLAN.condo_value_date)    set("plan-value-date",    PLAN.condo_value_date.substring(0,7));
+  _updateApprDisplay();
   set("plan-p1-interest", ((PLAN.sean_interest||0.08205)*100).toFixed(3));
   set("plan-p2-interest", ((PLAN.casie_interest||0.08205)*100).toFixed(3));
   applyPlanType(PLAN.plan_type || "sell_buy");
+}
+
+// ── APPRECIATION RATE AUTO-CALC ──
+function _updateApprDisplay(){
+  const rateEl = g("plan-condo-rate");
+  const dispEl = g("appr-rate-display");
+  if(!rateEl || !dispEl) return;
+  const pct = parseFloat(rateEl.value)||0;
+  if(pct){
+    const annual = ((Math.pow(1 + pct/100, 12) - 1)*100).toFixed(1);
+    dispEl.textContent = `${pct.toFixed(3)}%/mo · ${annual}%/yr`;
+  } else {
+    dispEl.textContent = "";
+  }
+}
+
+function onApprDateChange(){
+  // When dates change, show a hint to recalculate
+  const st = g("appr-calc-status");
+  if(st) { st.textContent = "Dates changed — click Recalculate"; st.style.color = "var(--acc)"; }
+}
+
+async function calcAppreciationRate(){
+  const st    = g("appr-calc-status");
+  const pPrice = parseFloat(g("plan-condo-purchase")?.value)||0;
+  const cValue = parseFloat(g("plan-condo-value")?.value)||0;
+  const pDate  = g("plan-purchase-date")?.value||"";
+  const vDate  = g("plan-value-date")?.value||"";
+
+  if(!pPrice || !cValue){ if(st){st.textContent="Enter purchase price and current value first";st.style.color="var(--red)";}return; }
+  if(!pDate)  { if(st){st.textContent="Enter purchase date first";st.style.color="var(--red)";}return; }
+  if(!vDate)  { if(st){st.textContent="Enter value as-of date first";st.style.color="var(--red)";}return; }
+
+  if(st){ st.textContent="Calculating…"; st.style.color="var(--mut)"; }
+  try{
+    const r = await fetch(`${API}/plan/calc-appreciation`,{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({purchase_price:pPrice, current_value:cValue, purchase_date:pDate, value_date:vDate})
+    });
+    const d = await r.json();
+    if(d.error){ if(st){st.textContent=d.error;st.style.color="var(--red)";} return; }
+    // Update the rate field and plan
+    const rateEl = g("plan-condo-rate");
+    if(rateEl) rateEl.value = d.monthly_rate_pct.toFixed(4);
+    PLAN.condo_rate = d.monthly_rate;
+    PLAN.condo_purchase_date = pDate;
+    PLAN.condo_value_date    = vDate;
+    _updateApprDisplay();
+    if(st){
+      st.textContent = `✓ ${d.monthly_rate_pct.toFixed(4)}%/mo (${d.implied_annual_pct}%/yr) over ${d.months} months`;
+      st.style.color = "var(--grn)";
+      setTimeout(()=>{if(st)st.textContent=""},5000);
+    }
+    // Sync plan tab quick control
+    const pcr = g("pcr"); if(pcr) pcr.value = d.monthly_rate_pct.toFixed(4);
+    // Re-render plan projection
+    const pr=await fetch(`${API}/plan`); const pd=await pr.json(); PLAN=pd; PROJ=pd.projection||[];
+    renderPlan();
+    toast("Appreciation rate updated.");
+  }catch(e){
+    if(st){st.textContent="Error — check console";st.style.color="var(--red)";}
+  }
 }
 
 async function savePlanSettings(){
@@ -1647,6 +1750,8 @@ async function savePlanSettings(){
     condo_monthly_principal: gn("plan-condo-monthly-principal"),
     condo_rate:              gn("plan-condo-rate") / 100,
     condo_mortgage_rate:     gn("plan-condo-mortgage-rate") / 100,
+    condo_purchase_date:     gs("plan-purchase-date") || PLAN.condo_purchase_date || "",
+    condo_value_date:        gs("plan-value-date")    || PLAN.condo_value_date    || "",
     sean_interest:           gn("plan-p1-interest") / 100,
     casie_interest:          gn("plan-p2-interest") / 100,
     plan_type:               PLAN.plan_type || "sell_buy",
@@ -1659,6 +1764,7 @@ async function savePlanSettings(){
   sync("pcr",   (payload.condo_rate*100).toFixed(2));
   sync("psr",   (payload.sean_interest*100).toFixed(3));
   sync("pcsr",  (payload.casie_interest*100).toFixed(3));
+  _updateApprDisplay();
   const st = g("plan-settings-status");
   try{
     const r=await fetch(`${API}/plan`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});

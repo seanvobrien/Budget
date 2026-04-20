@@ -119,9 +119,7 @@ jobs:
             | Platform | File | For |
             |---|---|---|
             | Windows | Budget-Windows.zip | All Windows PCs |
-            | Mac | Budget-Mac.zip | All Macs (M1/M2/M3/M4 native · Intel via Rosetta 2) |
-
-            **Intel Mac users:** The Mac build runs on Intel Macs automatically via Rosetta 2 (built into macOS Big Sur and later). If you're on Catalina or older, upgrade macOS first.
+            | Mac | Budget-Mac.zip | All Macs |
 
             Unzip, double-click `Budget.app` (Mac) or `Budget.exe` (Windows). Opens in your browser automatically.
 
