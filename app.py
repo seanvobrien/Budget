@@ -188,7 +188,7 @@ def _stmts_path(sub: str) -> Path:
 EXPENSE_CATS = {
     "Grocery","Restaurant","Electric","Natural Gas","Internet","Car Services",
     "Car Payment","Gym","MBTA","Amazon","Uber","Subscription","Veterinary",
-    "Dentist Office","Insurance","HOA","Mortgage"
+    "Dentist Office","Insurance","HOA","Mortgage","All-Other"
 }
 
 def derived_income(s):
@@ -405,13 +405,15 @@ def aggregate_monthly(txns):
     from collections import defaultdict
     from calendar import month_abbr as ma
     mo = defaultdict(lambda:{"income":0.0,"contributions":0.0,"categories":defaultdict(float)})
+    SKIP_CATS = {"Pay Check", "Contribution", "Deposit", "Investment",
+                 "Venmo", "ATM", "Payment", "Exclude"}
     for r in txns:
         if r["excluded"]: continue
         k, cat, amt = r["key"], r["category"], r["amount"]
         if cat == "Pay Check":     mo[k]["income"] += amt
         elif cat == "Contribution":
             if amt < 0:            mo[k]["contributions"] += abs(amt)
-        elif cat in EXPENSE_CATS:  mo[k]["categories"][cat] += abs(amt)
+        elif cat not in SKIP_CATS: mo[k]["categories"][cat] += abs(amt)
     result = []
     for k in sorted(mo.keys()):
         if k == "2023-12": continue
