@@ -212,7 +212,7 @@ select:focus,input:focus{border-color:var(--acc2)}
 
 <!-- ══ MONTHLY ══ -->
 <div id="pg-monthly" class="pg">
-  <div class="notice" style="margin-bottom:10px">Click any month bar to expand categories and load all transactions below. Transactions come from your Credit Card + Checking statements — only refreshed when you click Parse Statements. <strong>Contributions</strong> = money transferred from Fidelity checking to your brokerage/IRA accounts (TRANSFERRED TO VS rows).</div>
+  <div class="notice" style="margin-bottom:10px">Click any month bar to expand categories and load all transactions below. Transactions come from your Credit Card statements + Fidelity Checking exports — only refreshed when you click Parse Statements. <strong>Contributions</strong> = money transferred from Fidelity checking to your brokerage/IRA accounts (TRANSFERRED TO VS rows).</div>
   <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
     <span class="stt" style="margin:0">Months:</span>
     <button class="btn btn-sm" onclick="selAll(true)">All</button>
@@ -1227,9 +1227,14 @@ function renderBudget(){
     const spent=tots[cat]||0;const adjLim=lim*mult;const p=Math.min(100,adjLim>0?spent/adjLim*100:0);const col=p>100?"#e05c5c":p>80?"#e8c46a":"#4caf7d";
     return `<div class="lr"><span class="lr-cat"><span class="cdot" style="background:${cc(cat)}"></span>${cat}</span><div class="lr-bw"><div class="lr-b" style="width:${p}%;background:${col}"></div></div><span class="lr-s" style="color:${p>100?"var(--red)":"var(--txt)"}">${fmt(spent)}</span><span class="lr-p">${Math.round(p)}%</span><input type="number" value="${lim}" min="0" step="10" onchange="LIMITS['${cat}']=parseFloat(this.value);renderBudget()" style="width:68px;font-size:10px;background:var(--bg3);border:1px solid var(--bdr);color:var(--txt);border-radius:4px;padding:2px 5px"></div>`;
   }).join("");
-  const cs=g("cat-sel");if(!cs.options.length){Object.keys(tots).forEach(k=>{const o=document.createElement("option");o.value=k;o.textContent=k;cs.appendChild(o)});cs.value="Grocery"}
-  drawTrend();
+  // Always rebuild category dropdown from all known LIMITS keys (sorted by all-time spend desc)
   const allT={};MONTHLY.forEach(m=>Object.entries(m.categories).forEach(([k,v])=>{allT[k]=(allT[k]||0)+v}));
+  const cs=g("cat-sel");
+  const prevCat=cs.value||"Grocery";
+  const dropCats=Object.keys(LIMITS).sort((a,b)=>(allT[b]||0)-(allT[a]||0));
+  cs.innerHTML=dropCats.map(k=>`<option value="${k}">${k}</option>`).join("");
+  cs.value=dropCats.includes(prevCat)?prevCat:dropCats[0]||"Grocery";
+  drawTrend();
   const n=MONTHLY.length;const avgs=Object.entries(allT).map(([k,v])=>[k,v/n]).sort((a,b)=>b[1]-a[1]);
   const hh=Math.max(200,avgs.length*22+60);if(g("hb-c"))g("hb-c").parentElement.style.height=hh+"px";
   mc("hb-c",{type:"bar",data:{labels:avgs.map(x=>x[0]),datasets:[{data:avgs.map(x=>Math.round(x[1])),backgroundColor:avgs.map(x=>cc(x[0])),borderRadius:3}]},options:{indexAxis:"y",responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmt(c.raw)+"/mo avg"}}},scales:{x:{ticks:{color:"#8a93a8",font:{size:9},callback:v=>fmt(v)},grid:{color:"rgba(255,255,255,.05)"}},y:{ticks:{color:"#8a93a8",font:{size:10}},grid:{display:false}}}}});
