@@ -470,31 +470,26 @@ def compute_projection(plan):
     condo_principle_paid = float(plan.get("condo_principle", 0))
     _condo_monthly_principal = float(plan.get("condo_monthly_principal", 850))
 
-    # ── Anchor condo_val AND condo_principle_paid to value_date, not start_month ─
-    # Both condo_value and condo_principle are recorded as-of condo_value_date.
-    # We back-project to start_month so the loop compounds correctly from row 1.
-    #
-    #   value_at_start     = condo_value     / (1 + rate)^offset
-    #   principle_at_start = condo_principle - (_monthly_principal * offset)
-    #
-    # months_offset > 0  → value_date is AFTER start_month  → reverse both
-    # months_offset < 0  → value_date is BEFORE start_month → forward both
+    # Anchor condo_val AND condo_principle_paid to value_date, not start_month.
+    # The loop pre-increments (condo_val *= rate, principal += monthly) BEFORE
+    # appending each row. So the row labelled start_month already reflects one
+    # month of growth past the init value. To land on condo_value exactly at
+    # value_date we back-project (offset + 1) months, where offset = months
+    # from start_month to value_date.
     _value_date_str = plan.get("condo_value_date", "")
     if _value_date_str and condo_val > 0:
         try:
             _vd = datetime.strptime(_value_date_str[:7], "%Y-%m")
             _sd = datetime.strptime(start, "%Y-%m")
             _months_offset = (_vd.year - _sd.year) * 12 + (_vd.month - _sd.month)
-            if _months_offset != 0:
-                # Back-calculate value (only if we have a rate to work with)
-                if condo_rate > 0:
-                    condo_val = condo_val / ((1 + condo_rate) ** _months_offset)
-                # Back-calculate principal paid: subtract payments made since start_month
-                condo_principle_paid = max(
-                    condo_principle_paid - (_condo_monthly_principal * _months_offset), 0
-                )
+            _eff = _months_offset + 1
+            if condo_rate > 0:
+                condo_val = condo_val / ((1 + condo_rate) ** _eff)
+            condo_principle_paid = max(
+                condo_principle_paid - (_condo_monthly_principal * _eff), 0
+            )
         except Exception:
-            pass  # If parsing fails, use stored values as-is (safe fallback)
+            pass
     # If current home mortgage rate is provided, refine monthly principal estimate
     _condo_mort_rate = float(plan.get("condo_mortgage_rate", 0.0))
     if _condo_mort_rate > 0 and condo_purchase_price > 0:
