@@ -206,7 +206,7 @@ select:focus,input:focus{border-color:var(--acc2)}
   <div class="card" style="margin-bottom:14px"><div class="stt">Income vs Expenses vs Contributions</div><div class="cw" style="height:180px"><canvas id="st-c"></canvas></div></div>
   <div class="g2">
     <div class="card"><div class="stt">Income Breakdown</div><div id="inc-summary"></div></div>
-    <div class="card"><div class="stt">Housing Costs YTD vs Target</div><div id="housing-rows"></div></div>
+    <div class="card"><div class="stt">Spending YTD vs Target</div><div id="housing-rows"></div></div>
   </div>
 </div>
 
@@ -259,8 +259,8 @@ select:focus,input:focus{border-color:var(--acc2)}
   </div>
   <div class="notice">Monthly limits. Full Year = limit × months selected. Edit any limit inline → Save Limits to persist. <strong>Actual</strong> = real spend from your parsed statements. Progress bar turns yellow at 80%, red when over.</div>
   <div class="g4" id="budget-kpi" style="margin-top:10px;margin-bottom:14px"></div>
-  <div class="g2r">
-    <div class="card"><div class="stt">Actual vs Limit</div><div id="limit-rows"></div></div>
+  <div class="g2r" style="align-items:stretch">
+    <div class="card" style="display:flex;flex-direction:column"><div class="stt">Actual vs Limit</div><div id="limit-rows" style="flex:1"></div></div>
     <div class="card">
       <div class="stt">Category Trend (12 months)</div>
       <div style="display:flex;gap:8px;margin-bottom:8px"><select id="cat-sel" onchange="drawTrend()"></select></div>
@@ -320,7 +320,8 @@ select:focus,input:focus{border-color:var(--acc2)}
     </div>
     <div id="plan-appr-ctrl">
       <div style="font-size:10px;color:var(--mut);margin-bottom:3px" id="plan-appr-lbl">Property Appr./mo %</div>
-      <input type="number" id="pcr" value="0.3" step=".05" style="width:75px" onchange="savePlanParam()">
+      <div id="pcr-display" style="font-size:13px;font-weight:600;color:var(--acc2);font-family:var(--font-mono);padding:5px 8px;background:var(--bg3);border:1px solid var(--bdr);border-radius:4px;width:75px;text-align:right">—</div>
+      <input type="hidden" id="pcr" value="0.3">
     </div>
     <div>
       <div style="font-size:10px;color:var(--mut);margin-bottom:3px" id="psr-lbl">P1 Savings Rate %</div>
@@ -857,7 +858,13 @@ async function loadData(){
     if(d.names){NAMES=d.names;applyNames();}
     if(d.custom_cats){CUSTOM_CATS=d.custom_cats;}
     rebuildAllCats(); // always run — ensures custom cats are in LIMITS and CC
+    const _monthlyFirstLoad=Object.keys(CHS).length===0 && MONTHLY.length>0;
     MONTHLY.forEach(m=>{if(!(m.key in CHS))CHS[m.key]=true});
+    // On first load, default to last 12 months rolling
+    if(_monthlyFirstLoad){
+      const last12Keys=new Set(MONTHLY.slice(-12).map(m=>m.key));
+      MONTHLY.forEach(m=>{ CHS[m.key]=last12Keys.has(m.key); });
+    }
     g("hdr-sub").textContent=`Financial Planner · ${(d.tx_count||0).toLocaleString()} transactions · ${MONTHLY.length} months`;
     if(d.last_updated){g("last-badge").innerHTML=`<span class="dot grn"></span> Updated ${d.last_updated}`;g("last-badge").className="badge grn"}
     const sc=d.statement_counts||{};g("files-badge").textContent=`${sc.credit||0} Credit · ${sc.debit||0} Debit · ${sc.investments||0} Investments`;
@@ -888,6 +895,7 @@ async function loadPlan(){
     const set=(id,v)=>{const el=g(id);if(el&&v!=null)el.value=v};
     set("pp",PLAN.target_price);set("pdp",(PLAN.down_pct||.2)*100);set("pr",(PLAN.mortgage_rate||.055)*100);
     set("pcr",((PLAN.condo_rate||0.003)*100).toFixed(2));
+    const pcrDisp=g("pcr-display");if(pcrDisp)pcrDisp.textContent=((PLAN.condo_rate||0.003)*100).toFixed(2)+"%";
     set("psr",(PLAN.sean_interest*100).toFixed(3));set("pcsr",(PLAN.casie_interest*100).toFixed(3));
     if(PLAN.liq_dp_pct  != null){ const el=g("liq-dp-pct");  if(el) el.value=PLAN.liq_dp_pct; }
     if(PLAN.liq_res_pct != null){ const el=g("liq-res-pct"); if(el) el.value=PLAN.liq_res_pct; }
@@ -919,7 +927,7 @@ function showPg(id,btn){
   g("pg-"+id).classList.add("active");btn.classList.add("active");
   if(id==="monthly"){renderMonthChips();renderMonthlyDetail()}
   if(id==="budget"){initBudgetFilters();renderBudget()}
-  if(id==="port")renderPort();
+  if(id==="port"){renderPort();if(PORTFOLIO.length>0&&Object.keys(LIVE_PRICES).length===0)fetchPrices();}
   if(id==="plan")renderPlan();
   if(id==="settings")renderSettingsPage();
 }
@@ -1004,7 +1012,17 @@ function renderDash(){
     <div class="inc-field" style="background:var(--bg3);border-radius:6px;padding:6px 8px;margin-top:4px"><span class="lbl" style="font-weight:600;color:var(--txt)">Combined Monthly</span><span class="val acc" style="font-size:14px">${fmt(inc.combined_net_monthly||10950)}/mo</span></div>`;
   }
   const ytd=MONTHLY.filter(m=>m.key.startsWith(String(new Date().getFullYear())));
-  const hItems=[["Mortgage","Mortgage",LIMITS.Mortgage*12],["HOA","HOA",LIMITS.HOA*12],["Electric","Electric",LIMITS.Electric*12],["Natural Gas","Natural Gas",LIMITS["Natural Gas"]*12],["Internet","Internet",LIMITS.Internet*12]];
+  const hItems=[
+    ["Mortgage","Mortgage",LIMITS.Mortgage*12],
+    ["HOA","HOA",LIMITS.HOA*12],
+    ["Electric","Electric",LIMITS.Electric*12],
+    ["Natural Gas","Natural Gas",LIMITS["Natural Gas"]*12],
+    ["Internet","Internet",LIMITS.Internet*12],
+    ["Insurance","Insurance",LIMITS.Insurance*12],
+    ["Car Payment","Car Payment",LIMITS["Car Payment"]*12],
+    ["Grocery","Grocery",LIMITS.Grocery*12],
+    ["Restaurant","Restaurant",LIMITS.Restaurant*12],
+  ];
   g("housing-rows").innerHTML=hItems.map(([lbl,cat,tgt])=>{
     const run=ytd.reduce((s,m)=>s+(m.categories[cat]||0),0);
     const p=tgt>0?Math.min(100,run/tgt*100):0;const col=p>100?"#e05c5c":p<50?"#4caf7d":"#e8c46a";
@@ -1682,6 +1700,7 @@ function _updateApprDisplay(){
   if(pct){
     const annual = ((Math.pow(1 + pct/100, 12) - 1)*100).toFixed(1);
     dispEl.textContent = `${pct.toFixed(3)}%/mo · ${annual}%/yr`;
+    const pcrDisp=g("pcr-display");if(pcrDisp)pcrDisp.textContent=pct.toFixed(3)+"%";
   } else {
     dispEl.textContent = "";
   }
@@ -1726,6 +1745,7 @@ async function calcAppreciationRate(){
     }
     // Sync plan tab quick control
     const pcr = g("pcr"); if(pcr) pcr.value = d.monthly_rate_pct.toFixed(4);
+    const pcrDisp=g("pcr-display");if(pcrDisp)pcrDisp.textContent=parseFloat(d.monthly_rate_pct).toFixed(4)+"%";
     // Re-render plan projection
     const pr=await fetch(`${API}/plan`); const pd=await pr.json(); PLAN=pd; PROJ=pd.projection||[];
     renderPlan();
@@ -1762,6 +1782,7 @@ async function savePlanSettings(){
   sync("pdp",   (payload.down_pct*100).toFixed(1));
   sync("pr",    (payload.mortgage_rate*100).toFixed(3));
   sync("pcr",   (payload.condo_rate*100).toFixed(2));
+  const pcrDisp2=g("pcr-display");if(pcrDisp2)pcrDisp2.textContent=(payload.condo_rate*100).toFixed(2)+"%";
   sync("psr",   (payload.sean_interest*100).toFixed(3));
   sync("pcsr",  (payload.casie_interest*100).toFixed(3));
   _updateApprDisplay();
