@@ -31,9 +31,7 @@ if _env_file.exists():
             os.environ.setdefault(_k.strip(), _v.strip().strip('"').strip("'"))
 
 OUTPUT_DIR     = BASE_DIR / "output"
-PLAN_FILE      = BASE_DIR / "savings_plan.json"
-OVERRIDES_FILE = BASE_DIR / "overrides.json"
-SETTINGS_FILE  = BASE_DIR / "settings.json"
+CONFIG_FILE    = BASE_DIR / "config.json"
 
 _sse_clients, _sse_lock = [], threading.Lock()
 state_lock = threading.Lock()
@@ -58,6 +56,18 @@ def load_json(path, default):
 
 def save_json(path, data):
     Path(path).write_text(json.dumps(data, indent=2))
+
+def load_config():
+    cfg = load_json(CONFIG_FILE, {})
+    settings  = cfg.get("settings",  json.loads(json.dumps(DEFAULT_SETTINGS)))
+    plan      = cfg.get("plan",      json.loads(json.dumps(DEFAULT_PLAN)))
+    overrides = cfg.get("overrides", {})
+    if not CONFIG_FILE.exists():
+        save_json(CONFIG_FILE, {"settings": settings, "plan": plan, "overrides": overrides})
+    return settings, plan, overrides
+
+def save_config():
+    save_json(CONFIG_FILE, {"settings": SETTINGS, "plan": PLAN, "overrides": OVERRIDES})
 
 DEFAULT_SETTINGS = {
     "names": {"p1": "Person 1", "p2": "Person 2"},
@@ -126,9 +136,7 @@ def _default_plan():
 
 DEFAULT_PLAN = _default_plan()
 
-SETTINGS  = load_json(SETTINGS_FILE,  DEFAULT_SETTINGS)
-PLAN      = load_json(PLAN_FILE,      DEFAULT_PLAN)
-OVERRIDES = load_json(OVERRIDES_FILE, {})
+SETTINGS, PLAN, OVERRIDES = load_config()
 
 
 def _create_shortcut_once():
@@ -669,7 +677,7 @@ def groq_key():
     if request.method == "POST":
         key = (request.json or {}).get("key", "").strip()
         SETTINGS["groq_api_key"] = key
-        save_json(SETTINGS_FILE, SETTINGS)
+        save_config()
         return jsonify({"ok": True})
     return jsonify({"key": SETTINGS.get("groq_api_key", "")})
 
@@ -707,7 +715,7 @@ def calc_appreciation():
             PLAN["condo_purchase_date"] = purchase_date
             PLAN["condo_value_date"]    = value_date
             PLAN["condo_rate"]          = round(monthly_rate, 6)
-        save_json(PLAN_FILE, PLAN)
+        save_config()
         return jsonify({
             "ok": True,
             "monthly_rate": round(monthly_rate, 6),
@@ -818,7 +826,7 @@ def set_override():
             if "category" in data: ov["category"] = data["category"]
             if "exclude"  in data: ov["exclude"]  = bool(data["exclude"])
             OVERRIDES[tx_key] = ov
-    save_json(OVERRIDES_FILE, OVERRIDES)
+    save_config()
     push_event("data_refreshed", {"ts": datetime.now().isoformat()})
     return jsonify({"ok": True})
 
@@ -842,7 +850,7 @@ def update_settings():
         if "custom_cats" in data: SETTINGS["custom_cats"] = data["custom_cats"]
         if "new_cat_rule" in data and data["new_cat_rule"]:
             _append_category_rule(data["new_cat_rule"]["keyword"], data["new_cat_rule"]["category"])
-    save_json(SETTINGS_FILE, SETTINGS)
+    save_config()
     push_event("settings_updated", {"income": derived_income(SETTINGS), "limits": SETTINGS["limits"]})
     return jsonify({**SETTINGS, "income_derived": derived_income(SETTINGS)})
 
@@ -866,7 +874,7 @@ def update_plan():
         if "income_overrides" in data: PLAN["income_overrides"] = data["income_overrides"]
         if "liq_dp_pct"       in data: PLAN["liq_dp_pct"]       = data["liq_dp_pct"]
         if "liq_res_pct"      in data: PLAN["liq_res_pct"]      = data["liq_res_pct"]
-    save_json(PLAN_FILE, PLAN)
+    save_config()
     return jsonify({**PLAN, "projection": compute_projection(PLAN)})
 
 @app.route("/api/plan/month", methods=["POST"])
@@ -878,7 +886,7 @@ def update_plan_month():
         for f in ["sean_income","casie_income","sean_contrib","casie_contrib"]:
             if f in data: ex[f] = float(data[f])
         PLAN["months"][key] = ex
-    save_json(PLAN_FILE, PLAN)
+    save_config()
     return jsonify({"ok": True, "projection": compute_projection(PLAN)})
 
 if __name__ == "__main__":

@@ -36,7 +36,6 @@ jobs:
           New-Item -ItemType Directory -Path dist\BudgetApp\statements\debit
           New-Item -ItemType Directory -Path dist\BudgetApp\statements\investments
           New-Item -ItemType Directory -Path dist\BudgetApp\output
-          python build_defaults.py dist\BudgetApp
           Compress-Archive -Path dist\BudgetApp -DestinationPath dist\Budget-Windows.zip
 
       - name: Upload artifact
@@ -74,7 +73,6 @@ jobs:
           mkdir -p dist/BudgetApp/statements/investments
           mkdir -p dist/BudgetApp/output
           cp Budget.ico dist/BudgetApp/Budget.ico
-          python3 build_defaults.py dist/BudgetApp
           cd dist && zip -r Budget-Mac.zip BudgetApp
 
       - name: Upload artifact

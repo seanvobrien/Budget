@@ -88,7 +88,6 @@ BudgetApp/
 ├── run.py                        ← Statement parser entry point
 ├── budget.html                   ← Dashboard frontend
 ├── Budget.spec                   ← PyInstaller build spec
-├── build_defaults.py             ← Generates clean JSON for distribution
 ├── requirements.txt              ← Python dependencies
 ├── .gitignore                    ← Keeps personal data out of git
 ├── .github/
@@ -187,13 +186,11 @@ The `.github/workflows/build.yml` is already in your repo. GitHub Actions picks 
 
 ### What Gets Distributed
 
-The ZIP contains a clean app with no personal data:
+The ZIP contains a clean app with no personal data. `config.json` is created automatically on first launch with all defaults.
 ```
 BudgetApp/
 ├── Budget.exe  (or Budget.app on Mac)
-├── settings.json        ← clean defaults, all zeros
-├── savings_plan.json    ← clean defaults
-├── overrides.json       ← empty
+├── config.json          ← clean defaults (settings, plan, overrides)
 └── statements/
     ├── Credit/
     ├── Debit/
